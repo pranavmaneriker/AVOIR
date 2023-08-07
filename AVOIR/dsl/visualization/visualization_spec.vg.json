@@ -1,0 +1,336 @@
+{
+    "$schema": "https://vega.github.io/schema/vega/v5.json",
+    "description": "A visualization of a fairness specification written in our grammar",
+    "width": 500,
+    "height": 500,
+    "padding": 5,
+    "signals": [
+        {
+            "name": "tooltip",
+            "value": {},
+            "on": [
+                {
+                    "events": "symbol:mouseover",
+                    "update": "datum"
+                },
+                {
+                    "events": "symbol:mouseout",
+                    "update": "{}"
+                }
+            ]
+        },
+        {
+            "name": "tree_width",
+            "value": 200
+        },
+        {
+            "name": "plot_width",
+            "update": "width - tree_width"
+        }
+    ],
+    "data": [
+        {
+            "name": "tree",
+            "url": "./spec_tree.json",
+            "transform": [
+                {
+                    "type": "stratify",
+                    "key": "id",
+                    "parentKey": "parent_id"
+                },
+                {
+                    "type": "tree",
+                    "method": "tidy",
+                    "size": [
+                        {
+                            "signal": "height"
+                        },
+                        {
+                            "signal": "tree_width"
+                        }
+                    ],
+                    "separation": false,
+                    "as": [
+                        "y",
+                        "x",
+                        "depth",
+                        "children"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "links",
+            "source": "tree",
+            "transform": [
+                {
+                    "type": "treelinks"
+                },
+                {
+                    "type": "linkpath",
+                    "shape": "diagonal",
+                    "orient": "horizontal"
+                }
+            ]
+        },
+        {
+            "name": "node_data",
+            "source": "tree",
+            "transform": [
+                {
+                    "type": "filter",
+                    "expr": "datum.repr == tooltip.repr"
+                },
+                {
+                    "type": "flatten",
+                    "fields": [
+                        "timesteps",
+                        "values"
+                    ]
+                }
+            ]
+        }
+    ],
+    "scales": [
+        {
+            "name": "color",
+            "type": "linear",
+            "range": {
+                "scheme": "magma"
+            },
+            "domain": {
+                "data": "tree",
+                "field": "depth"
+            },
+            "zero": true
+        }
+    ],
+    "layout": {
+        "padding": 20,
+        "bounds": "full",
+        "align": "each"
+    },
+    "marks": [
+        {
+            "type": "group",
+            "name": "tree_group",
+            "encode": {
+                "update": {
+                    "width": {
+                        "signal": "tree_width"
+                    },
+                    "height": {
+                        "signal": "height"
+                    }
+                }
+            },
+            "marks": [
+                {
+                    "type": "path",
+                    "from": {
+                        "data": "links"
+                    },
+                    "encode": {
+                        "update": {
+                            "path": {
+                                "field": "path"
+                            },
+                            "stroke": {
+                                "value": "#ccc"
+                            }
+                        }
+                    }
+                },
+                {
+                    "type": "symbol",
+                    "from": {
+                        "data": "tree"
+                    },
+                    "encode": {
+                        "enter": {
+                            "size": {
+                                "value": 900
+                            },
+                            "stroke": {
+                                "value": "#fff"
+                            }
+                        },
+                        "update": {
+                            "x": {
+                                "field": "x"
+                            },
+                            "y": {
+                                "field": "y"
+                            },
+                            "fill": {
+                                "scale": "color",
+                                "field": "depth"
+                            }
+                        },
+                        "hover": {
+                            "fill": {
+                                "value": "green"
+                            }
+                        }
+                    }
+                },
+                {
+                    "type": "text",
+                    "from": {
+                        "data": "tree"
+                    },
+                    "encode": {
+                        "enter": {
+                            "text": {
+                                "field": "repr"
+                            },
+                            "fontSize": {
+                                "value": 12
+                            },
+                            "baseline": {
+                                "value": "middle"
+                            }
+                        },
+                        "update": {
+                            "x": {
+                                "field": "x"
+                            },
+                            "y": {
+                                "field": "y"
+                            },
+                            "dx": {
+                                "signal": "datum.children ? -15 : 15"
+                            },
+                            "align": {
+                                "signal": "datum.children ? 'right' : 'left'"
+                            }
+                        }
+                    }
+                },
+                {
+                    "type": "text",
+                    "encode": {
+                        "enter": {
+                            "fontSize": {
+                                "value": 12
+                            },
+                            "baseline": {
+                                "value": "middle"
+                            }
+                        },
+                        "update": {
+                            "x": {
+                                "signal": "tooltip.x"
+                            },
+                            "y": {
+                                "signal": "tooltip.y"
+                            },
+                            "dy": {
+                                "value": 20
+                            },
+                            "dx": {
+                                "value": 20
+                            },
+                            "align": {
+                                "signal": "tooltip.children ? 'top':'bottom'"
+                            },
+                            "text": {
+                                "signal": "tooltip.values"
+                            },
+                            "fillOpacity": [
+                                {
+                                    "test": "isNaN(tooltip.repr)",
+                                    "value": 0
+                                },
+                                {
+                                    "value": 1
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "type": "group",
+            "name": "plot_group",
+            "encode": {
+                "update": {
+                    "width": {
+                        "signal": "plot_width"
+                    },
+                    "height": {
+                        "signal": "height"
+                    }
+                }
+            },
+            "scales": [
+                {
+                    "name": "x",
+                    "type": "point",
+                    "range": "width",
+                    "domain": {
+                        "data": "node_data",
+                        "field": "timesteps"
+                    }
+                },
+                {
+                    "name": "y",
+                    "type": "linear",
+                    "nice": true,
+                    "range": "height",
+                    "zero": false,
+                    "reverse": false,
+                    "domain": {
+                        "data": "node_data",
+                        "field": "values"
+                    }
+                }
+            ],
+            "axes": [
+                {
+                    "orient": "bottom",
+                    "scale": "x"
+                },
+                {
+                    "orient": "left",
+                    "scale": "y"
+                }
+            ],
+            "marks": [
+                {
+                    "type": "line",
+                    "from": {
+                        "data": "node_data"
+                    },
+                    "encode": {
+                        "enter": {
+                            "x": {
+                                "scale": "x",
+                                "field": "timesteps"
+                            },
+                            "y": {
+                                "scale": "y",
+                                "field": "values"
+                            },
+                            "strokeWidth": {
+                                "value": 2
+                            },
+                            "stroke": {
+                                "value": "steelblue"
+                            }
+                        },
+                        "update": {
+                            "interpolate": {
+                                "value": "linear"
+                            },
+                            "strokeOpacity": {
+                                "value": 1
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

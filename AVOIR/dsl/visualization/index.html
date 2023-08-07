@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    .error {
+        color: red;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
+	<script src="https://cdn.jsdelivr.net/npm/vega-embed@5"></script>
+</head>
+<body>
+  <div id="vis"></div>
+  <script>
+      vegaEmbed("#vis", "visualization_spec.vg.json")
+      // result.view provides access to the Vega View API
+      .then(result => console.log(result))
+      .catch(console.warn);
+  </script>
+</body>
+</html>

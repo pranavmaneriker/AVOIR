@@ -1,0 +1,703 @@
+{
+    "$schema": "https://vega.github.io/schema/vega/v5.json",
+    "description": "A visualization of a fairness specification written in our grammar",
+    "autosize": {
+        "type": "fit",
+        "resize": true,
+        "contains": "padding"
+    },
+    "padding": 20,
+    "signals": [
+        {
+            "name": "points", "value": true,
+            "bind": {"input": "checkbox"}
+        },
+        {
+            "name": "node1_selection",
+            "value": {},
+            "on": [
+                {
+                    "events": "symbol:click[event.shiftKey]",
+                    "update": "datum"
+                }
+            ]
+        },
+        {
+            "name": "node2_selection",
+            "value": {},
+            "on": [
+                {
+                    "events": "symbol:dblclick",
+                    "update": "datum"
+                }
+            ]
+        },
+        {
+            "name": "inner_height",
+            "update": "height-(padding.top + padding.bottom)"
+        },
+        {
+            "name": "tree_width",
+            "update": "width * (5/9)"
+        },
+        {
+            "name": "plot_padding",
+            "update": "20"
+        },
+        {
+            "name": "plot_width",
+            "update": "width - tree_width"
+        },
+        {
+            "name": "plot_height",
+            "update": "(inner_height-(plot_padding*2))/2"
+        },
+        {
+            "name": "plot_x_range",
+            "update": "[0, plot_width]"
+        },
+        {
+            "name": "plot_y_range",
+            "update": "[0, plot_height]"
+        }
+    ],
+    "data": [
+        {
+            "name": "tree",
+            "transform": [
+                {
+                    "type": "stratify",
+                    "key": "id",
+                    "parentKey": "parent_id"
+                },
+                {
+                    "type": "tree",
+                    "method": "tidy",
+                    "size": [
+                        {
+                            "signal": "inner_height"
+                        },
+                        {
+                            "signal": "tree_width"
+                        }
+                    ],
+                    "separation": true,
+                    "as": [
+                        "y",
+                        "x",
+                        "depth",
+                        "children"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "links",
+            "source": "tree",
+            "transform": [
+                {
+                    "type": "treelinks"
+                },
+                {
+                    "type": "linkpath",
+                    "shape": "diagonal",
+                    "orient": "horizontal"
+                }
+            ]
+        },
+        {
+            "name": "node_data",
+            "source": "tree",
+            "transform": [
+                {
+                    "type": "filter",
+                    "expr": "datum.repr == node1_selection.repr"
+                },
+                {
+                    "type": "flatten",
+                    "fields": [
+                        "timesteps",
+                        "values"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "node2_data",
+            "source": "tree",
+            "transform": [
+                {
+                    "type": "filter",
+                    "expr": "datum.repr == node2_selection.repr"
+                },
+                {
+                    "type": "flatten",
+                    "fields": [
+                        "timesteps",
+                        "values"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "shared_node_data_aggregates",
+            "source": [
+                "node_data",
+                "node2_data"
+            ],
+            "transform": [
+                {
+                    "type": "aggregate",
+                    "ops": [
+                        "min",
+                        "max"
+                    ],
+                    "fields": [
+                        "timesteps",
+                        "timesteps"
+                    ],
+                    "as": [
+                        "min_timestep",
+                        "max_timestep"
+                    ]
+                },
+                {
+                    "type": "formula",
+                    "as": "timesteps_domain",
+                    "expr": "[datum.min_timestep, datum.max_timestep]"
+                },
+                {
+                    "type": "flatten",
+                    "fields": [
+                        "timesteps_domain"
+                    ]
+                },
+                {
+                    "type": "collect",
+                    "sort": {
+                        "field": "timesteps_domain"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "node_data_aggregates",
+            "source": "node_data",
+            "transform": [
+                {
+                    "type": "aggregate",
+                    "ops": [
+                        "min",
+                        "max"
+                    ],
+                    "fields": [
+                        "values",
+                        "values"
+                    ],
+                    "as": [
+                        "min_value",
+                        "max_value"
+                    ]
+                },
+                {
+                    "type": "formula",
+                    "as": "values_domain",
+                    "expr": "[datum.min_value, datum.max_value]"
+                },
+                {
+                    "type": "flatten",
+                    "fields": [
+                        "values_domain"
+                    ]
+                },
+                {
+                    "type": "collect",
+                    "sort": {
+                        "field": "values_domain"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "node2_data_aggregates",
+            "source": "node2_data",
+            "transform": [
+                {
+                    "type": "aggregate",
+                    "ops": [
+                        "min",
+                        "max"
+                    ],
+                    "fields": [
+                        "values",
+                        "values"
+                    ],
+                    "as": [
+                        "min_value",
+                        "max_value"
+                    ]
+                },
+                {
+                    "type": "formula",
+                    "as": "values_domain",
+                    "expr": "[datum.min_value, datum.max_value]"
+                },
+                {
+                    "type": "flatten",
+                    "fields": [
+                        "values_domain"
+                    ]
+                },
+                {
+                    "type": "collect",
+                    "sort": {
+                        "field": "values_domain"
+                    }
+                }
+            ]
+        }
+    ],
+    "scales": [
+        {
+            "name": "color",
+            "type": "linear",
+            "range": {
+                "scheme": "magma"
+            },
+            "domain": {
+                "data": "tree",
+                "field": "depth"
+            },
+            "zero": true
+        }
+    ],
+    "layout": {
+        "padding": 20,
+        "bounds": "full",
+        "align": "each",
+        "center": {
+            "row": true,
+            "column": true
+        },
+        "columns": 2
+    },
+    "marks": [
+        {
+            "type": "group",
+            "name": "tree_group",
+            "encode": {
+                "update": {
+                    "width": {
+                        "signal": "tree_width"
+                    },
+                    "height": {
+                        "signal": "inner_height"
+                    }
+                }
+            },
+            "marks": [
+                {
+                    "type": "path",
+                    "from": {
+                        "data": "links"
+                    },
+                    "encode": {
+                        "update": {
+                            "path": {
+                                "field": "path"
+                            },
+                            "stroke": {
+                                "value": "#ccc"
+                            }
+                        }
+                    }
+                },
+                {
+                    "type": "symbol",
+                    "from": {
+                        "data": "tree"
+                    },
+                    "encode": {
+                        "enter": {
+                            "size": {
+                                "value": 900
+                            },
+                            "stroke": {
+                                "value": "#fff"
+                            }
+                        },
+                        "update": {
+                            "x": {
+                                "field": "x"
+                            },
+                            "y": {
+                                "field": "y"
+                            },
+                            "fill": {
+                                "scale": "color",
+                                "field": "depth"
+                            }
+                        },
+                        "hover": {
+                            "fill": {
+                                "value": "green"
+                            }
+                        }
+                    }
+                },
+                {
+                    "type": "text",
+                    "from": {
+                        "data": "tree"
+                    },
+                    "encode": {
+                        "enter": {
+                            "text": {
+                                "field": "repr"
+                            },
+                            "fontSize": {
+                                "value": 12
+                            },
+                            "baseline": {
+                                "value": "middle"
+                            }
+                        },
+                        "update": {
+                            "x": {
+                                "field": "x"
+                            },
+                            "y": {
+                                "field": "y"
+                            },
+                            "dx": {
+                                "signal": "datum.children ? -15 : 15"
+                            },
+                            "align": {
+                                "signal": "datum.children ? 'right' : 'left'"
+                            }
+                        }
+                    }
+                },
+                {
+                    "type": "text",
+                    "encode": {
+                        "enter": {
+                            "fontSize": {
+                                "value": 12
+                            },
+                            "baseline": {
+                                "value": "middle"
+                            }
+                        },
+                        "update": {
+                            "x": {
+                                "signal": "node1_selection.x"
+                            },
+                            "y": {
+                                "signal": "node1_selection.y"
+                            },
+                            "dy": {
+                                "value": 20
+                            },
+                            "dx": {
+                                "value": 20
+                            },
+                            "align": {
+                                "signal": "node1_selection.children ? 'top':'bottom'"
+                            },
+                            "fillOpacity": [
+                                {
+                                    "test": "isNaN(node1_selection.repr)",
+                                    "value": 0
+                                },
+                                {
+                                    "value": 1
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "type": "group",
+            "name": "assistant_plots_group",
+            "encode": {
+                "update": {
+                    "width": {
+                        "signal": "plot_width"
+                    },
+                    "height": {
+                        "signal": "inner_height"
+                    }
+                }
+            },
+            "layout": {
+                "padding": {
+                    "signal": "plot_padding"
+                },
+                "bounds": "full",
+                "align": "each",
+                "center": {
+                    "row": true,
+                    "column": false
+                },
+                "columns": 1
+            },
+            "scales": [
+                {
+                    "name": "x_shared",
+                    "type": "linear",
+                    "range": {
+                        "signal": "plot_x_range"
+                    },
+                    "domain": {
+                        "data": "shared_node_data_aggregates",
+                        "field": "timesteps_domain"
+                    },
+                    "zero": true
+                }
+            ],
+            "marks": [
+                {
+                    "type": "group",
+                    "name": "plot1_group",
+                    "encode": {
+                        "update": {
+                            "width": {
+                                "signal": "plot_width"
+                            },
+                            "height": {
+                                "signal": "plot_height"
+                            }
+                        }
+                    },
+                    "title": {
+                        "text": {
+                            "signal": "node1_selection.repr"
+                        },
+                        "fontSize": {
+                            "value": 12
+                        }
+                    },
+                    "scales": [
+                        {
+                            "name": "y",
+                            "type": "linear",
+                            "nice": true,
+                            "range": {
+                                "signal": "plot_y_range"
+                            },
+                            "zero": false,
+                            "reverse": true,
+                            "domain": {
+                                "data": "node_data_aggregates",
+                                "field": "values_domain"
+                            }
+                        }
+                    ],
+                    "axes": [
+                        {
+                            "orient": "bottom",
+                            "scale": "x_shared"
+                        },
+                        {
+                            "orient": "left",
+                            "scale": "y"
+                        }
+                    ],
+                    "marks": [
+                        {
+                            "type": "line",
+                            "from": {
+                                "data": "node_data"
+                            },
+                            "encode": {
+                                "enter": {
+                                    "x": {
+                                        "scale": "x_shared",
+                                        "field": "timesteps"
+                                    },
+                                    "y": {
+                                        "scale": "y",
+                                        "field": "values"
+                                    },
+                                    "strokeWidth": {
+                                        "value": 2
+                                    },
+                                    "stroke": {
+                                        "value": "steelblue"
+                                    }
+                                },
+                                "update": {
+                                    "interpolate": {
+                                        "value": "linear"
+                                    },
+                                    "strokeOpacity": {
+                                        "value": 1
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "name": "marks",
+                            "type": "symbol",
+                            "from": {
+                                "data": "node_data"
+                            },
+                            "encode": {
+                                "update": {
+                                    "x": {
+                                        "scale": "x_shared",
+                                        "field": "timesteps"
+                                    },
+                                    "y": {
+                                        "scale": "y",
+                                        "field": "values"
+                                    },
+                                    "size": {
+                                        "value": 30
+                                    },
+                                    "shape": {
+                                        "value": "circle"
+                                    },
+                                    "strokeWidth": {
+                                        "value": 2
+                                    },
+                                    "opacity": {
+                                        "signal": "if(points, 0.5, 0)"
+                                    },
+                                    "stroke": {
+                                        "value": "steelblue"
+                                    },
+                                    "fill": {
+                                        "value": "transparent"
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "type": "group",
+                    "name": "plot2_group",
+                    "encode": {
+                        "update": {
+                            "width": {
+                                "signal": "plot_width"
+                            },
+                            "height": {
+                                "signal": "plot_height"
+                            }
+                        }
+                    },
+                    "title": {
+                        "text": {
+                            "signal": "node2_selection.repr"
+                        },
+                        "fontSize": {
+                            "value": 12
+                        }
+                    },
+                    "scales": [
+                        {
+                            "name": "y",
+                            "type": "linear",
+                            "nice": true,
+                            "range": {
+                                "signal": "plot_y_range"
+                            },
+                            "zero": false,
+                            "reverse": true,
+                            "domain": {
+                                "data": "node2_data_aggregates",
+                                "field": "values_domain"
+                            }
+                        }
+                    ],
+                    "axes": [
+                        {
+                            "orient": "bottom",
+                            "scale": "x_shared"
+                        },
+                        {
+                            "orient": "left",
+                            "scale": "y"
+                        }
+                    ],
+                    "marks": [
+                        {
+                            "type": "line",
+                            "from": {
+                                "data": "node2_data"
+                            },
+                            "encode": {
+                                "enter": {
+                                    "x": {
+                                        "scale": "x_shared",
+                                        "field": "timesteps"
+                                    },
+                                    "y": {
+                                        "scale": "y",
+                                        "field": "values"
+                                    },
+                                    "strokeWidth": {
+                                        "value": 2
+                                    },
+                                    "stroke": {
+                                        "value": "steelblue"
+                                    }
+                                },
+                                "update": {
+                                    "interpolate": {
+                                        "value": "linear"
+                                    },
+                                    "strokeOpacity": {
+                                        "value": 1
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "name": "marks",
+                            "type": "symbol",
+                            "from": {
+                                "data": "node2_data"
+                            },
+                            "encode": {
+                                "update": {
+                                    "x": {
+                                        "scale": "x_shared",
+                                        "field": "timesteps"
+                                    },
+                                    "y": {
+                                        "scale": "y",
+                                        "field": "values"
+                                    },
+                                    "size": {
+                                        "value": 30
+                                    },
+                                    "shape": {
+                                        "value": "circle"
+                                    },
+                                    "strokeWidth": {
+                                        "value": 2
+                                    },
+                                    "opacity": {
+                                        "signal": "if(points, 0.5, 0)"
+                                    },
+                                    "stroke": {
+                                        "value": "steelblue"
+                                    },
+                                    "fill": {
+                                        "value": "transparent"
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
