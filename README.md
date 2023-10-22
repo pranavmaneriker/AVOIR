@@ -1,5 +1,12 @@
 # Accountability Project
 
+## Setup the pacakge
+```
+pip install AVOIR
+```
+
+=====
+
 ## Setup environment
 
 The packages required and the environment can be setup by either using `pip`
@@ -9,6 +16,11 @@ pip install rquirements.txt
 or `pipenv` (recommended)
 ```
 pipenv install 
+```
+
+## Run tests
+```
+nosetests -c nose.cfg
 ```
 
 ## Setup optimizers
@@ -23,6 +35,8 @@ export PATH=$PATH:$(pwd)/nlp_solver
 To test that `IPOPT` is setup correctly, run `which ipopt` and you should get the path of the executable as the output.
 
 Note: You may need to follow system specific instructions to install [GLPK](https://www.gnu.org/software/glpk/) and [IPOPT](https://coin-or.github.io/Ipopt/) in case the runtime invironment is not x86_64 linux.
+
+
 
 ## Pretrained models
 Please download and extract the  `outputs` directory from [dropbox](https://www.dropbox.com/sh/n5o4vswnkxv34zr/AABthgLMaYL3MuA0KC39Z1G8a?dl=0) to the `RBR/RBR` directory to reproduce the `ratemyprofs.ipynb`.
