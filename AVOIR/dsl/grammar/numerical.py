@@ -77,7 +77,7 @@ class NumericalOperator(Enum):
         return False
 
 
-class NumericalExpression(JSONTableEncodableTreeExpression):
+class NumericalExpression:#(JSONTableEncodableTreeExpression):
     RESERVE_WORD_RETVAL = "NumericalExpression.RESERVE_WORD_RETVAL"
     _RETVAL_SYMBOLIC_REP = "return"
 
@@ -107,8 +107,8 @@ class NumericalExpression(JSONTableEncodableTreeExpression):
         self.is_return_value = False
         if symbolic_rep == self.RESERVE_WORD_RETVAL:
             self.is_return_value = True
-        self.bound_var = False
-        JSONTableEncodableTreeExpression.__init__(self)
+        self.is_bound = False
+        #JSONTableEncodableTreeExpression.__init__(self)
 
     def bind(self, val):
         """
@@ -119,23 +119,20 @@ class NumericalExpression(JSONTableEncodableTreeExpression):
         if self.expression_type == NumericalExpressionType.expr:
             raise TypeError("Binding only allowed for variables and constants")
         self.val = val
-        self.bound_var = True
+        self.is_bound = True
 
     def unbind(self):
         if self.expression_type == NumericalExpressionType.expr:
             raise TypeError("Unbinding only allowed for variables and constants")
         self.val = None
-        self.bound_var = False
+        self.is_bound = False
 
-    def bind_variables(self, vals: Dict[str, any], call_id=0, observation_key=None):
+    def bind_variables(self, vals: Dict[str, Union[int, bool, float]]): #, call_id=0):
         """
         Given a mapping from variable names to values, bind_variables recursively
         binds values in the mapping to variables contained within its expression
         :param vals: mapping from variable names to a value (scalar, vector, or matrix)
         """
-        self.undo_previous_observations(with_key=observation_key)
-        #if len(vals) == 0:
-        #    return
 
         if self.expression_type == NumericalExpressionType.constant:
             return
@@ -143,10 +140,10 @@ class NumericalExpression(JSONTableEncodableTreeExpression):
             val = vals.get(self.symbolic_rep)
             self.bind(val) 
         elif self.expression_type == NumericalExpressionType.expr:
-            self.left_child.bind_variables(vals, call_id, observation_key=observation_key)
-            self.right_child.bind_variables(vals, call_id, observation_key=observation_key)
+            self.left_child.bind_variables(vals) #, call_id)
+            self.right_child.bind_variables(vals) #, call_id)
 
-        self.update_values(call_id, value_key=observation_key)
+        #self.update_values(call_id, value_key=observation_key)
 
     def unbind_variables(self):
         if self.expression_type == NumericalExpressionType.constant:
@@ -157,18 +154,8 @@ class NumericalExpression(JSONTableEncodableTreeExpression):
             self.left_child.unbind_variables()
             self.right_child.unbind_variables()
 
-    def unobserve(self, call_id, observation_key):
-        self.undo_previous_observations(with_key=observation_key)
-
-        if self.expression_type == NumericalExpressionType.expr:
-            self.left_child.unobserve(call_id, observation_key)
-            self.right_child.unobserve(call_id, observation_key)
-
-    def undo_previous_observations(self, with_key):
-        self.retire_values(with_key)
-
     def eval(self, call_id=None):
-        if self.expression_type != NumericalExpressionType.expr and not self.bound_var:
+        if self.expression_type != NumericalExpressionType.expr and not self.is_bound:
             raise UnboundLocalError(f"Trying to evaluate an unbound expression: {self.symbolic_rep}")
 
         if self.expression_type == NumericalExpressionType.expr:
@@ -230,16 +217,16 @@ class NumericalExpression(JSONTableEncodableTreeExpression):
         return create_expression(self, other, NumericalOperator.op_or)
 
     # overrides(JSONTableEncodableTreeExpression)
-    @property
-    def children(self) -> List[JSONTableEncodableTreeExpression]:
-        return []
+    #@property
+    #def children(self) -> List[JSONTableEncodableTreeExpression]:
+    #    return []
 
-    # overrides(JSONTableEncodableTreeExpression)
-    @property
-    def row_representation(self) -> JSONTableRow:
-        return JSONTableRow(
-            row_type=TableRowType.numerical_expression
-        )
+    ## overrides(JSONTableEncodableTreeExpression)
+    #@property
+    #def row_representation(self) -> JSONTableRow:
+    #    return JSONTableRow(
+    #        row_type=TableRowType.numerical_expression
+    #    )
 
 
 def create_expression(left: NumericalExpression, right: Union[NumericalExpression, int, float],

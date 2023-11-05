@@ -46,6 +46,17 @@ class TestNumericalExpression(unittest.TestCase):
         e = 2/v1
         v1.bind(5)
         self.assertEqual(e.eval(), 0.4, "2/x = 0.4 for x = 5")
+    
+    def test_recursive_binding(self):
+        v1 = nu.create_variable("x")
+        v2 = nu.create_variable("y")
+        e = v1 + v2
+        e.bind({"x": 1, "y": 2})
+        self.assertEqual(e.eval(), 3, "1 + 2 = 3")
+        
+        e.unbind_variables()
+        e.bind({"x": 3, "y": 4})
+        self.assertEqual(e.eval(), 7, "3 + 4 = 7 after unbinding")
 
 
 def suite():
@@ -56,7 +67,8 @@ def suite():
         TestNumericalExpression("test_expression_constant_overloading"),
         TestNumericalExpression("test_expression_variables"),
         TestNumericalExpression("test_expression_equality"),
-        TestNumericalExpression("test_auto_overloading")
+        TestNumericalExpression("test_auto_overloading"),
+        TestNumericalExpression("test_recursive_binding")
     ])
     return suite
 
