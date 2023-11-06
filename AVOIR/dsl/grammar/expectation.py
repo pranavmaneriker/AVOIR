@@ -25,9 +25,61 @@ ETerm := E[E]
   | ETerm {+, -, /, x} ETerm
 """
 
+def promote_before_op(op_func):
+    def wrapper(*args):
+        promoted_args = []
+        for arg in args:
+            if isinstance(arg, ExpectationTerm):
+                promoted_args.append(arg)
+            elif isinstance(arg, Expectation):
+                promoted_args.append(ExpectationTerm(repr(arg), ExpectationTermType.expectation, arg, None, None))
+            elif type(arg) in [NumericalExpression, float, int]:
+                promoted_args.append(ExpectationTerm.from_numerical(arg))
+            else:
+                raise ValueError("Cannot promote type ", type(arg))
+        return op_func(*promoted_args)
+    return wrapper
+
+class ExpectationTermOps:
+    """ A class to capture promotion to ETerm and then ETerm operations
+    """
+    def __init__(self):
+        pass
+    
+    @promote_before_op
+    def __add__(self, other):
+        return create_binary_expectation_term(self, other, op=NumericalOperator.add)
+
+    @promote_before_op
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    @promote_before_op
+    def __sub__(self, other):
+        return create_binary_expectation_term(self, other, op=NumericalOperator.subtract)
+
+    @promote_before_op
+    def __rsub__(self, other):
+        return (self * -1) + other
+
+    @promote_before_op
+    def __mul__(self, other):
+        return create_binary_expectation_term(self, other, op=NumericalOperator.multiply)
+
+    @promote_before_op
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+    @promote_before_op
+    def __truediv__(self, other):
+        return create_binary_expectation_term(self, other, op=NumericalOperator.divide)
+
+    @promote_before_op
+    def __rtruediv__(self, other):
+        return other / self
 
 
-class Expectation:
+class Expectation(ExpectationTermOps):
     """
     An Expectation keeps track of the expected value of a NumericalExpression.
     Through the observe(observations) function, an Expectation collects observations
@@ -76,10 +128,12 @@ class Expectation:
         self.n_observations += 1
         # keep track for hyper expressions TODO
         self.observations.append(observations)
+        logger.debug(f"Observations {observations} used to update for {str(self)},"
+                     f" leading to aggregate: {self.aggregate_value} at n: {self.n_observations}")
         #observation_key = self.update_values(call_id, value_key=observation_key)
         #return observation_key, None, None
 
-    def observe(self, observations: ObservationType):
+    def observe(self, observations: ObservationType, call_id=None):
         self._observe_with_children(observations)
 
     def __repr__(self):
@@ -89,7 +143,8 @@ class Expectation:
         if self.n_observations == 0:
             raise NoObservedOutcomesError(
                 ("Cannot provided an expected value with no outcomes "
-                 f"for expression: {self.expression.symbolic_rep}")
+                 f"for expression: {self.expression.symbolic_rep}"
+                 f" under condition: {self.condition.symbolic_rep}")
             )
         logger.debug(
             f"EXPECTATION OF {self} is {self.aggregate_value / self.n_observations}")
@@ -165,7 +220,7 @@ class ExpectationTermType(Enum):
     expectation = 2
     constant = 3
 
-class ExpectationTerm:#(JSONTableEncodableTreeExpression, BoundableValue, ConstrainedValue):
+class ExpectationTerm(ExpectationTermOps):#(JSONTableEncodableTreeExpression, BoundableValue, ConstrainedValue):
     """
     An ExpectationTerm is a binary expression that captures binary operations of 
     probabilistic expressions. A base expectation term is either an Expectation or 
@@ -188,18 +243,11 @@ class ExpectationTerm:#(JSONTableEncodableTreeExpression, BoundableValue, Constr
         #BoundableValue.__init__(self)
         #ConstrainedValue.__init__(self)
 
-    def _observe_with_children(self, observations: ObservationType):# , call_id=None, observation_key=None,
-       #                        with_bounds=False, delta=0.05):
-        #self.undo_previous_observations(with_key=observation_key)
-        self.left_child.observe(observations)#, call_id, observation_key, with_bounds, delta)
-        self.right_child.observe(observations) #, call_id, observation_key, with_bounds, delta)
-        #l_observation_key = self.left_child.observe(observations, call_id, observation_key, with_bounds, delta)
-        #r_observation_key = self.right_child.observe(observations, call_id, observation_key, with_bounds, delta)
-        #observation_key = self.update_values(call_id, value_key=observation_key)
-        #return observation_key, l_observation_key, r_observation_key
-
-    def observe(self, observations: ObservationType): #, call_id=None, observation_key=None, with_bounds=False, delta=0.05):
-        obs = self._observe_with_children(observations) #, call_id, observation_key, with_bounds, delta)
+    def observe(self, observations: ObservationType, call_id=None): #, call_id=None, observation_key=None, with_bounds=False, delta=0.05):
+        if self.term_type in [ExpectationTermType.expectation, ExpectationTermType.binary]:
+            obs = self.left_child.observe(observations, call_id=call_id) #, call_id, observation_key, with_bounds, delta)
+        if self.term_type == ExpectationTermType.binary:
+            obs = self.right_child.observe(observations, call_id=call_id)
         #return obs[0] if obs is not None else None
 
     def eval(self, call_id=None) -> float:
@@ -212,60 +260,22 @@ class ExpectationTerm:#(JSONTableEncodableTreeExpression, BoundableValue, Constr
         return val
     
 
-    def __add__(self, other):
-        other = self._promote_other_eterm(other)
-        return create_expectation_term(self, other, op=NumericalOperator.add)
-
-    def __radd__(self, other):
-        return self.__add__(other)
-
-    def __sub__(self, other):
-        other = self._promote_other_eterm(other)
-        return create_expectation_term(self, other, op=NumericalOperator.subtract)
-
-    def __rsub__(self, other):
-        return (self * -1) + other
-
-    def __mul__(self, other):
-        other = self._promote_other_eterm(other)
-        return create_expectation_term(self, other, op=NumericalOperator.multiply)
-
-    def __rmul__(self, other):
-        return self.__mul__(other)
-
-    def __truediv__(self, other):
-        other = self._promote_other_eterm(other)
-        return create_expectation_term(self, other, op=NumericalOperator.divide)
-
-    def __rtruediv__(self, other):
-        other = self._promote_other_eterm(other)
-        return other / self
-
-    def _promote_other_eterm(self, other: Union[NumericalExpression, float]):
-        if isinstance(other, ExpectationTerm):
-            return other
-        elif isinstance(other, Expectation):
-            return ExpectationTerm(other.symbolic_rep, ExpectationTermType.expectation, other, None, None)
-        else:
-            other_numexpr = self.from_numerical(other)
-            return ExpectationTerm(other_numexpr.symbolic_rep, ExpectationTermType.constant, other_numexpr, None, None)
-
     def __repr__(self):
         return self.symbolic_rep
 
     @classmethod
-    def from_numerical(cls, other: Union[NumericalExpression, float, int]) -> NumericalExpression:
-        if isinstance(other, NumericalExpression):
-            if other.expression_type != NumericalExpressionType.constant:
+    def from_numerical(cls, term: Union[NumericalExpression, float, int]) -> NumericalExpression:
+        if isinstance(term, NumericalExpression):
+            if term.expression_type != NumericalExpressionType.constant:
                 raise ValueError("Using non-constant numerical expressions outside Expectations not allowed.")
-            return other
-        elif isinstance(other, float) or isinstance(other, int):
-            return create_constant(other)
+        elif isinstance(term, float) or isinstance(term, int):
+            term = create_constant(term)
         else:
-            raise NotImplementedError("Specification tracking not defined on ", type(other))
+            raise NotImplementedError("Specification tracking not defined on ", type(term))
+        return cls(repr(term), ExpectationTermType.constant, term, None, None)
 
 
-def create_expectation_term(left: ExpectationTerm, right: ExpectationTerm, op: NumericalOperator):
+def create_binary_expectation_term(left: ExpectationTerm, right: ExpectationTerm, op: NumericalOperator):
     op_symbol = NumericalOperator.symbols()[op]
     return ExpectationTerm(
         symbolic_rep=f"{left} {op_symbol} {right}",

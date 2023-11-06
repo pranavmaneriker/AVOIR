@@ -129,7 +129,7 @@ class NumericalExpression:#(JSONTableEncodableTreeExpression):
         self.val = None
         self.is_bound = False
 
-    def bind_variables(self, vals: ObservationType): #, call_id=0):
+    def bind_variables(self, vals: ObservationType, call_id=None): #, call_id=0):
         """
         Given a mapping from variable names to values, bind_variables recursively
         binds values in the mapping to variables contained within its expression
@@ -255,6 +255,7 @@ def create_constant(val) -> NumericalExpression:
 
 
 def create_variable(var_name) -> NumericalExpression:
+    """Note: This is the ONLY mechanism that should be used to create variables to avoid repeated binding"""
     var_expr = NumericalExpression(
         symbolic_rep=var_name,
         expression_type=NumericalExpressionType.variable

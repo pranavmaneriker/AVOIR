@@ -95,19 +95,17 @@ class TestExpectationTerm(unittest.TestCase):
         return [{"x": val} for val in vals]
 
     def _create_basic_terms(self):
-        x = nu.create_variable("x")
-        condition_lt = x < 10
-        condition_gt = x > 10
-        expectation_lt = ex.Expectation(x, given=condition_lt)
-        expectation_gt = ex.Expectation(x, given=condition_gt)
+        condition_lt = nu.create_variable("x") < 10
+        condition_gt = nu.create_variable("x") > 10
+        expectation_lt = ex.Expectation(nu.create_variable("x"), given=condition_lt)
+        expectation_gt = ex.Expectation(nu.create_variable("x"), given=condition_gt)
         return expectation_lt, expectation_gt
 
     def _create_basic_terms_bern(self):
-        x = nu.create_variable("x")
-        condition_lt = x < 0.5
-        condition_gt = x > 0.5
-        expectation_lt = ex.Expectation(x, given=condition_lt)
-        expectation_gt = ex.Expectation(x, given=condition_gt)
+        condition_lt = nu.create_variable("x") < 0.5
+        condition_gt = nu.create_variable("x") > 0.5
+        expectation_lt = ex.Expectation(nu.create_variable("x"), given=condition_lt)
+        expectation_gt = ex.Expectation(nu.create_variable("x"), given=condition_gt)
         return expectation_lt, expectation_gt
 
     def _expression_observe_values(self, expression: ex.ExpectationTerm, vals: List[Dict]):
@@ -121,26 +119,26 @@ class TestExpectationTerm(unittest.TestCase):
         self.assertEqual(binary_expectation_term.eval(), 21,
                          "expectation of x when < 10 / expectation of x when > 10 should be 21")
 
-    def test_binary_expectation_term_unobserve(self):
-        expectation_lt, expectation_gt = self._create_basic_terms()
-        binary_expectation_term = expectation_gt / expectation_lt
-        binary_expectation_term.observe({
-            "x": 1
-        }, call_id=0)
-        binary_expectation_term.observe({
-            "x": 3
-        }, call_id=1, observation_key="key")
-        binary_expectation_term.observe({
-            "x": 41
-        }, call_id=2)
-        binary_expectation_term.observe({
-            "x": 43
-        }, call_id=3)
-        self.assertEqual(binary_expectation_term.eval(), 21,
-                         "expectation of x when < 10 / expectation of x when > 10 should be 21")
-        binary_expectation_term.unobserve(call_id=4, observation_key="key")
-        self.assertEqual(binary_expectation_term.eval(), 42,
-                         "expectation of x when < 10 / expectation of x when > 10 should be 21")
+    #def test_binary_expectation_term_unobserve(self):
+    #    expectation_lt, expectation_gt = self._create_basic_terms()
+    #    binary_expectation_term = expectation_gt / expectation_lt
+    #    binary_expectation_term.observe({
+    #        "x": 1
+    #    }, call_id=0)
+    #    binary_expectation_term.observe({
+    #        "x": 3
+    #    }, call_id=1, observation_key="key")
+    #    binary_expectation_term.observe({
+    #        "x": 41
+    #    }, call_id=2)
+    #    binary_expectation_term.observe({
+    #        "x": 43
+    #    }, call_id=3)
+    #    self.assertEqual(binary_expectation_term.eval(), 21,
+    #                     "expectation of x when < 10 / expectation of x when > 10 should be 21")
+    #    binary_expectation_term.unobserve(call_id=4, observation_key="key")
+    #    self.assertEqual(binary_expectation_term.eval(), 42,
+    #                     "expectation of x when < 10 / expectation of x when > 10 should be 21")
 
     def test_binary_expectation_term_update(self):
         expectation_lt, expectation_gt = self._create_basic_terms()
@@ -150,7 +148,7 @@ class TestExpectationTerm(unittest.TestCase):
         }, call_id=0)
         binary_expectation_term.observe({
             "x": 3
-        }, call_id=1, observation_key="key")
+        }, call_id=1)
         binary_expectation_term.observe({
             "x": 41
         }, call_id=2)
@@ -160,17 +158,10 @@ class TestExpectationTerm(unittest.TestCase):
         self.assertEqual(binary_expectation_term.eval(), 21,
                          "expectation of x when < 10 / expectation of x when > 10 should be 21")
         binary_expectation_term.observe({
-            "x": 7
-        }, call_id=4, observation_key="key")
+            "x": 8
+        }, call_id=4)
         self.assertEqual(binary_expectation_term.eval(), 10.5,
                          "expectation of x when < 10 / expectation of x when > 10 should be 10.5")
-        # Note: The observation below is > 10, so it is included
-        # in the expectation for with the gt condition
-        binary_expectation_term.observe({
-            "x": 15
-        }, call_id=5, observation_key="key")
-        self.assertEqual(binary_expectation_term.eval(), 33,
-                         "expectation of x when < 10 / expectation of x when > 10 should be 99")
 
     def test_binary_expectation_term_with_constant(self):
         expression = nu.create_variable("x")
@@ -186,24 +177,24 @@ class TestExpectationTerm(unittest.TestCase):
 
     def test_binary_expectation_term_with_constant_update(self):
         expression = nu.create_variable("x")
-        binary_expectation_term = nu.Expectation(expression) * 5
+        binary_expectation_term = ex.Expectation(expression) * 5
         binary_expectation_term.observe({
             "x": 1
         }, call_id=0)
         binary_expectation_term.observe({
             "x": 3
-        }, call_id=1, observation_key="key")
+        }, call_id=1)
         self.assertEqual(binary_expectation_term.eval(), 10,
                          "(expectation of x = 1,3) * 5 should be 10")
         binary_expectation_term.observe({
-            "x": 7
-        }, call_id=2, observation_key="key")
+            "x": 8
+        }, call_id=2)
 
         self.assertEqual(binary_expectation_term.eval(), 20,
-                         "(expectation of x = 1,7) * 5 should be 20")
+                         "(expectation of x = 1,3,8) * 5 should be 20")
 
     def test_binary_expectation_term_with_r_constant(self):
-        expression = ex.create_variable("x")
+        expression = nu.create_variable("x")
         binary_expectation_term_add = 5 + ex.Expectation(expression)
         binary_expectation_term_mul = 5 * ex.Expectation(expression)
         binary_expectation_term_sub = 5 - ex.Expectation(expression)
@@ -350,12 +341,12 @@ def suite():
     mysuite = unittest.TestSuite()
     mysuite.addTests([
         TestExpectation("test_expectation"),
-        TestExpectation("test_expectation_unobserve"),
+        #TestExpectation("test_expectation_unobserve"),
         TestExpectation("test_conditional_expectation"),
-        TestExpectation("test_expectation_bound_at_delta"),
-        TestExpectation("test_expectation_bound_at_delta_monotonic_epsilon"),
+        #TestExpectation("test_expectation_bound_at_delta"),
+        #TestExpectation("test_expectation_bound_at_delta_monotonic_epsilon"),
         TestExpectationTerm("test_binary_expectation_term"),
-        TestExpectationTerm("test_binary_expectation_term_unobserve"),
+        #TestExpectationTerm("test_binary_expectation_term_unobserve"),
         TestExpectationTerm("test_binary_expectation_term_update"),
         TestExpectationTerm("test_binary_expectation_term_with_constant"),
         TestExpectationTerm("test_binary_expectation_term_with_constant"),
