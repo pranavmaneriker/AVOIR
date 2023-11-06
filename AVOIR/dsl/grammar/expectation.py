@@ -6,6 +6,7 @@ from .history import HistoryLoggingExpression
 
 from .numerical import NumericalExpression, create_constant, NumericalOperator, NumericalExpressionType
 from .errors import NoObservedOutcomesError
+from .specification import create_base_spec
 from .representation import JSONTableEncodableTreeExpression, JSONTableRow, TableRowType
 from .boundable import BoundableValue, ConstrainedValue
 from .bound_utils import compute_combined_eps, generate_eps_pyo, Constraint
@@ -25,18 +26,29 @@ ETerm := E[E]
   | ETerm {+, -, /, x} ETerm
 """
 
+def promote_item_to_et(item):
+    if isinstance(item, ExpectationTerm):
+        return item
+    elif isinstance(item, Expectation):
+        return ExpectationTerm(repr(item), ExpectationTermType.expectation, item, None, None)
+    elif type(item) in [NumericalExpression, float, int]:
+        return ExpectationTerm.from_numerical(item)
+    else:
+        raise ValueError("Cannot promote type ", type(item))
+        
+def create_numexpr_from_constant(term):
+    if isinstance(term, NumericalExpression):
+        if term.expression_type != NumericalExpressionType.constant:
+            raise ValueError("Using non-constant numerical expressions not allowed")
+        return term
+    elif isinstance(term, float) or isinstance(term, int):
+        return create_constant(term)
+    else:
+        raise NotImplementedError("Unsupported type for numerical expression", type(term))
+
 def promote_before_op(op_func):
     def wrapper(*args):
-        promoted_args = []
-        for arg in args:
-            if isinstance(arg, ExpectationTerm):
-                promoted_args.append(arg)
-            elif isinstance(arg, Expectation):
-                promoted_args.append(ExpectationTerm(repr(arg), ExpectationTermType.expectation, arg, None, None))
-            elif type(arg) in [NumericalExpression, float, int]:
-                promoted_args.append(ExpectationTerm.from_numerical(arg))
-            else:
-                raise ValueError("Cannot promote type ", type(arg))
+        promoted_args = [promote_item_to_et(arg) for arg in args]
         return op_func(*promoted_args)
     return wrapper
 
@@ -77,6 +89,15 @@ class ExpectationTermOps:
     @promote_before_op
     def __rtruediv__(self, other):
         return other / self
+
+    def __gt__(self, other):
+        return create_base_spec(promote_item_to_et(self),create_numexpr_from_constant(other), NumericalOperator.greater_than)
+    
+    def __lt__(self, other):
+        return create_base_spec(promote_item_to_et(self), create_numexpr_from_constant(other), NumericalOperator.less_than)
+
+    def __eq__(self, other) -> bool:
+        return create_base_spec(promote_item_to_et(self), create_numexpr_from_constant(other), NumericalOperator.equality)
 
 
 class Expectation(ExpectationTermOps):
@@ -265,14 +286,10 @@ class ExpectationTerm(ExpectationTermOps):#(JSONTableEncodableTreeExpression, Bo
 
     @classmethod
     def from_numerical(cls, term: Union[NumericalExpression, float, int]) -> NumericalExpression:
-        if isinstance(term, NumericalExpression):
-            if term.expression_type != NumericalExpressionType.constant:
-                raise ValueError("Using non-constant numerical expressions outside Expectations not allowed.")
-        elif isinstance(term, float) or isinstance(term, int):
-            term = create_constant(term)
-        else:
-            raise NotImplementedError("Specification tracking not defined on ", type(term))
-        return cls(repr(term), ExpectationTermType.constant, term, None, None)
+        term2 = create_numexpr_from_constant(term)
+        return cls(repr(term2), ExpectationTermType.constant, term2, None, None)
+    
+
 
 
 def create_binary_expectation_term(left: ExpectationTerm, right: ExpectationTerm, op: NumericalOperator):
