@@ -27,8 +27,12 @@ def _generate_eps_bound_adaptive_hoeffding_pyo(delta: float, n: int):
 def _generate_eps_bound_adaptive_hoeffding(delta: float, n: int):
     return math.sqrt((0.6 * math.log(math.log(n, 1.1) + 1) + (5 / 9) * (math.log(24/delta))) / n)
 
+def _generate_delta_bound_adaptive_hoeffding(eps: float, n: int):
+    return 24 * math.exp((9 / 5) * (0.6 * math.log(math.log(n, 1.1) + 1) - n * eps * eps))
+
 
 generate_eps = _generate_eps_bound_adaptive_hoeffding
+generate_delta = _generate_delta_bound_adaptive_hoeffding
 generate_eps_pyo = _generate_eps_bound_adaptive_hoeffding_pyo
 
 

@@ -4,7 +4,7 @@ import logging
 import pyomo.environ as pyo
 
 
-from .bound_utils import generate_eps
+from .bound_utils import generate_eps, generate_delta
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG, format='%(message)s')
@@ -186,10 +186,10 @@ class ObservedProbabilisticBoolean:
 
 
 class ObservedBoundedValue:
-    def __init__(self, val, epsilon, delta):
-        self.val = val
-        self.epsilon = epsilon
-        self.delta = delta
+    def __init__(self, val: float, epsilon: float, delta: float):
+        self.val: float = val
+        self.epsilon: float = epsilon
+        self.delta: float = delta
 
 
 class ProbabilisticBoolean:
@@ -229,8 +229,11 @@ class BoundableValue:
         self._bound_n = 0  # num obs
         self.bounded_observations = {} # TODO: Merge with observations, and allow both computations in one pass
 
-    def compute_eps_for_known_delta(self, obs: List[any], delta: float, n: int) -> float:
+    def compute_eps_for_known_delta(self, delta: float, n: int) -> float:
         return generate_eps(delta, n)
+    
+    def compute_delta_for_known_eps(self, eps: float, n: int) -> float:
+        return generate_delta(eps, n)
 
     @property
     def bound_val(self):
@@ -250,5 +253,8 @@ class BoundableValue:
             return ValueError(ERROR_MSG.format("delta"))
         return self._bound_delta
 
-    def record_value(self, str_id):
-        self.bounded_observations[str_id] = ObservedBoundedValue(self.bound_val, self.bound_epsilon, self.bound_delta)
+    def record_value(self, idx):
+        self.bounded_observations[idx] = ObservedBoundedValue(self.bound_val, self.bound_epsilon, self.bound_delta)
+    
+    def get_value_at_idx(self, idx) -> ObservedBoundedValue:
+        return self.bounded_observations[idx]

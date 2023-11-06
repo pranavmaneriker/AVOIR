@@ -51,34 +51,37 @@ class TestExpectation(unittest.TestCase):
         })
         self.assertEqual(expectation.eval(), 42, "expectation of x | x > 10, after seeing 1,3,41,43 should be 42")
 
-    #def test_expectation_bound_at_delta_constant(self):
-    #    expression = nu.create_variable("x")
-    #    condition = nu.create_variable("x") > 0.8
-    #    expectation = ex.Expectation(expression, given=condition)
-    #    values = [0.9 for _ in range(1000)]
-    #    for v in values:
-    #        expectation.observe({
-    #            "x": v
-    #        })
+    def test_expectation_bound_at_delta_constant(self):
+        expression = nu.create_variable("x")
+        condition = nu.create_variable("x") > 0.8
+        expectation = ex.Expectation(expression, given=condition)
+        values = [0.9 for _ in range(1000)]
+        for idx, v in enumerate(values):
+            expectation.observe({
+                "x": v
+            }, call_id=idx)
 
-    #    self.assertLessEqual(expectation.eval_bounded_at_delta(_DELTA_BOUND).bound_epsilon, 0.1,
-    #                         "large number of constant values in Expectation do not have a small \\epsilon")
+        self.assertLessEqual(expectation.eval_bounded_at_delta(_DELTA_BOUND).bound_epsilon, 0.1,
+                             "large number of constant values in Expectation do not have a small \\epsilon")
 
-    #def test_expectation_bound_at_delta_monotonic_epsilon(self):
-    #    expression = nu.create_variable("x")
-    #    condition = nu.create_variable("x") > 0.8
-    #    expectation = ex.Expectation(expression, given=condition)
-    #    values = [0.9 for _ in range(100)]
-    #    bound_epsilon_prev = math.inf
-    #    for v in values:
-    #        expectation.observe({
-    #            "x": v
-    #        })
-    #        computed_expectation = expectation.eval_bounded_at_delta(_DELTA_BOUND)
-    #        self.assertLessEqual(computed_expectation.bound_epsilon, bound_epsilon_prev,
-    #                             "\\epsilon does not decrease monotonically for Expectation")
+    def test_expectation_bound_at_delta_monotonic_epsilon(self):
+        expression = nu.create_variable("x")
+        condition = nu.create_variable("x") > 0.8
+        expectation = ex.Expectation(expression, given=condition)
+        values = [0.9 for _ in range(100)]
+        bound_epsilon_prev = math.inf
+        for idx, v in enumerate(values):
+            expectation.observe({
+                "x": v
+            }, call_id=idx)
+            expectation.eval_bounded_at_delta(_DELTA_BOUND, call_id=idx)
 
-    #        bound_epsilon_prev = computed_expectation.bound_epsilon
+        for idx in range(len(values)):
+            computed_bounded_value = expectation.get_value_at_idx(idx)
+            self.assertLessEqual(computed_bounded_value.epsilon, bound_epsilon_prev,
+                                 "\\epsilon does not decrease monotonically for Expectation")
+
+            bound_epsilon_prev = computed_bounded_value.epsilon
 
 
 class TestExpectationTerm(unittest.TestCase):
@@ -343,8 +346,8 @@ def suite():
         TestExpectation("test_expectation"),
         #TestExpectation("test_expectation_unobserve"),
         TestExpectation("test_conditional_expectation"),
-        #TestExpectation("test_expectation_bound_at_delta"),
-        #TestExpectation("test_expectation_bound_at_delta_monotonic_epsilon"),
+        TestExpectation("test_expectation_bound_at_delta_constant"),
+        TestExpectation("test_expectation_bound_at_delta_monotonic_epsilon"),
         TestExpectationTerm("test_binary_expectation_term"),
         #TestExpectationTerm("test_binary_expectation_term_unobserve"),
         TestExpectationTerm("test_binary_expectation_term_update"),
