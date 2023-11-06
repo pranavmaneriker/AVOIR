@@ -9,7 +9,7 @@ from pyomo.environ import LogicalConstraint, lor as pyo_or, land as pyo_and, Con
 
 if TYPE_CHECKING:
     from .expectation import Expectation, ExpectationTerm
-    from .boundable import BoundableValue
+    from .boundable import RangeBoundedValue
     from .specification import SpecificationThreshold
 from .numerical import NumericalOperator
 
@@ -36,7 +36,7 @@ generate_delta = _generate_delta_bound_adaptive_hoeffding
 generate_eps_pyo = _generate_eps_bound_adaptive_hoeffding_pyo
 
 
-def eps_sum(left_val: BoundableValue, right_val: BoundableValue):
+def eps_sum(left_val: RangeBoundedValue, right_val: RangeBoundedValue):
     eps_tot = left_val.bound_epsilon + right_val.bound_epsilon
     del_tot = left_val.bound_delta + right_val.bound_delta
     return eps_tot, del_tot
@@ -45,7 +45,7 @@ def eps_sum(left_val: BoundableValue, right_val: BoundableValue):
 eps_sub = eps_sum
 
 
-def eps_mul(left_val: BoundableValue, right_val: BoundableValue):
+def eps_mul(left_val: RangeBoundedValue, right_val: RangeBoundedValue):
     leval = left_val.bound_val
     rval = right_val.bound_val
     leps = left_val.bound_epsilon
@@ -55,7 +55,7 @@ def eps_mul(left_val: BoundableValue, right_val: BoundableValue):
     return eps_tot, del_tot
 
 
-def eps_div_comp(left_val: BoundableValue, right_val: BoundableValue):
+def eps_div_comp(left_val: RangeBoundedValue, right_val: RangeBoundedValue):
     del_tot = left_val.bound_delta + right_val.bound_delta
     leval = left_val.bound_val
     rval = right_val.bound_val
@@ -80,8 +80,8 @@ def compute_combined_eps(expectation_term: ExpectationTerm):
     }[op](expectation_term.left_child, expectation_term.right_child)
 
     delta = min(1.0, delta)
-    expectation_term._bound_epsilon = eps
-    expectation_term._bound_delta = delta
+    expectation_term.bound_epsilon = eps
+    expectation_term.bound_delta = delta
     return expectation_term
 
 

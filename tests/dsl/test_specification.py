@@ -71,20 +71,20 @@ class TestSpecification(unittest.TestCase):
         }, call_id=1, observation_key="key")
         self.assertTrue(spec.eval(), "E[1/x] > 1 & E[1/x] > 0 is true with observation x=0.5")
 
-    #def test_boolean_operator_specification(self):
-    #    expectation_term_1 = Expectation(create_variable('x') + 3)
-    #    expectation_term_2 = Expectation(create_variable('y') * create_variable('x') - 3)
-    #    binary_spec: Specification = (expectation_term_1 > 0) & (expectation_term_2 > 0)
-    #    vals = [{'x': 2, 'y': 2},
-    #            {'x': 2, 'y': 2},
-    #            {'x': 1, 'y': 3},
-    #            {'x': 2, 'y': 3}]
-    #    for idx, val in enumerate(vals):
-    #        binary_spec.observe(val, call_id=idx)
-    #    bounded_eval = binary_spec.eval_bounded()
-    #    self.assertLessEqual(bounded_eval.f_prob, 0.9,
-    #                         msg="(E[X + 2] > 0) & (E[XY - 3 > 0]) with (X, Y) = [(2, 2), (2, 2), (1, 3), (2, 3) "
-    #                             " should be true with some probability")
+    def test_boolean_operator_specification(self):
+        expectation_term_1 = Expectation(create_variable('x') + 3)
+        expectation_term_2 = Expectation(create_variable('y') * create_variable('x') - 3)
+        binary_spec: Specification = (expectation_term_1 > 0) & (expectation_term_2 > 0)
+        vals = [{'x': 2, 'y': 2},
+                {'x': 2, 'y': 2},
+                {'x': 1, 'y': 3},
+                {'x': 2, 'y': 3}]
+        for idx, val in enumerate(vals):
+            binary_spec.observe(val, call_id=idx)
+        bounded_eval = binary_spec.eval_bounded_at_delta(0.1)
+        self.assertLessEqual(bounded_eval.bound_delta, 0.9,
+                             msg="(E[X + 2] > 0) & (E[XY - 3 > 0]) with (X, Y) = [(2, 2), (2, 2), (1, 3), (2, 3) "
+                                 " should be true with some probability")
 
 def suite():
     mysuite = unittest.TestSuite()
@@ -94,7 +94,7 @@ def suite():
         TestSpecification("test_specification_update"),
         TestSpecificationThreshold("test_less_than_threshold"),
         TestSpecificationThreshold("test_equality_threshold"),
-        #TestSpecification('test_boolean_operator_specification')
+        TestSpecification('test_boolean_operator_specification')
     ])
     return mysuite
 

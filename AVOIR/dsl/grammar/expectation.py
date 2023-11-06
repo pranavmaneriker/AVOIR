@@ -8,7 +8,7 @@ from .numerical import NumericalExpression, create_constant, NumericalOperator, 
 from .errors import NoObservedOutcomesError
 from .specification import create_base_spec
 from .representation import JSONTableEncodableTreeExpression, JSONTableRow, TableRowType
-from .boundable import BoundableValue, ConstrainedValue
+from .boundable import RangeBoundedValue, ConstrainedValue
 from .bound_utils import compute_combined_eps, generate_eps_pyo, Constraint
 from .type_utils import ObservationType
 
@@ -100,7 +100,7 @@ class ExpectationTermOps:
         return create_base_spec(promote_item_to_et(self), create_numexpr_from_constant(other), NumericalOperator.equality)
 
 
-class Expectation(ExpectationTermOps, BoundableValue):
+class Expectation(ExpectationTermOps, RangeBoundedValue):
     """
     An Expectation keeps track of the expected value of a NumericalExpression.
     Through the observe(observations) function, an Expectation collects observations
@@ -126,7 +126,7 @@ class Expectation(ExpectationTermOps, BoundableValue):
         self.n_observations = 0
         self.observations = []
         #JSONTableEncodableTreeExpression.__init__(self)
-        BoundableValue.__init__(self)
+        RangeBoundedValue.__init__(self)
         #ConstrainedValue.__init__(self)
 
     def _observe_with_children(self, observations: ObservationType):
@@ -149,8 +149,8 @@ class Expectation(ExpectationTermOps, BoundableValue):
         self.n_observations += 1
         # keep track for hyper expressions TODO
         self.observations.append(observations)
-        logger.debug(f"Observations {observations} used to update for {str(self)},"
-                     f" leading to aggregate: {self.aggregate_value} at n: {self.n_observations}")
+        #logger.debug(f"Observations {observations} used to update for {str(self)},"
+        #             f" leading to aggregate: {self.aggregate_value} at n: {self.n_observations}")
         #observation_key = self.update_values(call_id, value_key=observation_key)
         #return observation_key, None, None
 
@@ -180,16 +180,16 @@ class Expectation(ExpectationTermOps, BoundableValue):
                 my_suffix = self._id_suffix
                 my_delta = delta.get(my_suffix, 1.0)
 
-            self._bound_val = self.eval(call_id)
-            self._bound_n = self.n_observations
+            self.bound_val = self.eval(call_id)
+            self.bound_n = self.n_observations
             eps = self.compute_eps_for_known_delta(my_delta, self.n_observations)
-            self._bound_epsilon = eps
-            self._bound_delta = my_delta
+            self.bound_epsilon = eps
+            self.bound_delta = my_delta
         except NoObservedOutcomesError:
             delta = 1.0
             eps = math.inf
-            self._bound_delta = delta
-            self._bound_epsilon = eps
+            self.bound_delta = delta
+            self.bound_epsilon = eps
         self.record_value(call_id)
         return self
     
@@ -239,7 +239,7 @@ class ExpectationTermType(Enum):
     expectation = 2
     constant = 3
 
-class ExpectationTerm(ExpectationTermOps, BoundableValue):#(JSONTableEncodableTreeExpression, , ConstrainedValue):
+class ExpectationTerm(ExpectationTermOps, RangeBoundedValue):#(JSONTableEncodableTreeExpression, , ConstrainedValue):
     """
     An ExpectationTerm is a binary expression that captures binary operations of 
     probabilistic expressions. A base expectation term is either an Expectation or 
@@ -258,6 +258,7 @@ class ExpectationTerm(ExpectationTermOps, BoundableValue):#(JSONTableEncodableTr
         self.left_child = left_child
         self.right_child = right_child
         self.op = op
+        RangeBoundedValue.__init__(self)
         #JSONTableEncodableTreeExpression.__init__(self)
         #BoundableValue.__init__(self)
         #ConstrainedValue.__init__(self)
@@ -283,12 +284,23 @@ class ExpectationTerm(ExpectationTermOps, BoundableValue):#(JSONTableEncodableTr
         return self.symbolic_rep
 
     def eval_bounded_at_delta(self, delta, call_id=None):
-        self._bound_val = self.eval(call_id)
-        self.left_child.eval_bounded_at_delta(delta, call_id)
-        self.right_child.eval_bounded_at_delta(delta, call_id)
-        combined_eps = compute_combined_eps(self)
+        # assume equal splits
+        self.bound_val = self.eval(call_id)
+        if self.term_type == ExpectationTermType.binary:
+            self.left_child.eval_bounded_at_delta(delta, call_id)
+            self.right_child.eval_bounded_at_delta(delta, call_id)
+            # update the combined using op specific rules
+            compute_combined_eps(self)
+        elif self.term_type == ExpectationTermType.expectation:
+            self.left_child.eval_bounded_at_delta(delta, call_id)
+            self.bound_epsilon = self.left_child.bound_epsilon
+            self.bound_delta = self.left_child.bound_delta
+        else:
+            # constant
+            self.bound_epsilon = 0.0
+            self.bound_delta = 0.0
         self.record_value(call_id)
-        return combined_eps
+        return self
 
     @classmethod
     def from_numerical(cls, term: Union[NumericalExpression, float, int]) -> NumericalExpression:

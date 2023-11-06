@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
     
 
-class SpecificationThreshold:#(JSONTableEncodableTreeExpression, ProbabilisticBoolean, ConstrainedValue):
+class SpecificationThreshold(ProbabilisticBoolean):#(JSONTableEncodableTreeExpression, ConstrainedValue):
     # Implements Eterm > c
 
     def __init__(self, expectation_term, threshold, op,
@@ -34,7 +34,7 @@ class SpecificationThreshold:#(JSONTableEncodableTreeExpression, ProbabilisticBo
         assert self.threshold.expression_type == NumericalExpressionType.constant, "Threshold must be constant"
 
         #JSONTableEncodableTreeExpression.__init__(self)
-        #ProbabilisticBoolean.__init__(self)
+        ProbabilisticBoolean.__init__(self)
         #ConstrainedValue.__init__(self)
 
     #@HistoryLoggingExpression.cached_eval
@@ -54,36 +54,37 @@ class SpecificationThreshold:#(JSONTableEncodableTreeExpression, ProbabilisticBo
         self.threshold.bind_variables(vals, call_id=call_id)
         #observation_key = self.update_values(call_id, value_key=observation_key)
         #return observation_key
-    #def eval_bounded_at_delta(self, delta, call_id=None):
-    #    eval_obs = self.expectation_term.eval_bounded_at_delta(delta, call_id)
-    #    threshold = self.threshold.eval(call_id)
-    #    eval_obs_upper = eval_obs.bound_val + eval_obs.bound_epsilon
-    #    eval_obs_lower = eval_obs.bound_val - eval_obs.bound_epsilon
-    #    comp_op_func = NumericalOperator.functions()[self.operator]
-    #    opposite_op_func = NumericalOperator.opposite_function()[self.operator]
-    #    perp = True
-    #    if comp_op_func(eval_obs.bound_val, threshold):
-    #        self._bool_val = True
-    #        if comp_op_func(eval_obs_upper, threshold) and comp_op_func(eval_obs_lower, threshold):
-    #            self._prob_val = True
-    #            self._fail_prob = eval_obs.bound_delta
-    #            perp = False
-    #            # the mean value satisfied the inequality
-    #    else:
-    #        self._bool_val = False
-    #        if opposite_op_func(eval_obs_upper, threshold) and opposite_op_func(eval_obs_lower, threshold):
-    #            self._prob_val = False
-    #            self._fail_prob = eval_obs.bound_delta
-    #            perp = False
 
-    #    if perp:
-    #        self._undetermined = True
-    #        self._fail_prob = 1.0
-    #    else:
-    #        self._undetermined = False
+    def eval_bounded_at_delta(self, delta, call_id=None):
+        eval_obs = self.expectation_term.eval_bounded_at_delta(delta, call_id)
+        threshold = self.threshold.eval(call_id)
+        eval_obs_upper = eval_obs.bound_val + eval_obs.bound_epsilon
+        eval_obs_lower = eval_obs.bound_val - eval_obs.bound_epsilon
+        comp_op_func = NumericalOperator.functions()[self.operator]
+        opposite_op_func = NumericalOperator.opposite_function()[self.operator]
+        perp = True
+        if comp_op_func(eval_obs.bound_val, threshold):
+            self._bool_val = True
+            if comp_op_func(eval_obs_upper, threshold) and comp_op_func(eval_obs_lower, threshold):
+                self._prob_val = True
+                self._fail_prob = eval_obs.bound_delta
+                perp = False
+                # the mean value satisfied the inequality
+        else:
+            self._bool_val = False
+            if opposite_op_func(eval_obs_upper, threshold) and opposite_op_func(eval_obs_lower, threshold):
+                self._prob_val = False
+                self._fail_prob = eval_obs.bound_delta
+                perp = False
 
-    #    self.record_value(self.row_id)  # NOTE: Move to observe, fix with uuid from JSONTable
-    #    return self
+        if perp:
+            self._undetermined = True
+            self._fail_prob = 1.0
+        else:
+            self._undetermined = False
+
+        self.record_value(call_id)  # NOTE: Move to observe, fix with uuid from JSONTable
+        return self
 
 
     def __repr__(self):
@@ -150,7 +151,7 @@ class SpecificationType(Enum):
     binary_spec = 2  # Spec &/| Spec
 
 
-class Specification:#(JSONTableEncodableTreeExpression, ProbabilisticBoolean, ConstrainedValue):
+class Specification(ProbabilisticBoolean):#(JSONTableEncodableTreeExpression, ConstrainedValue):
 
     def __init__(self, spec_type: SpecificationType = None,
                  left_child: Union['Specification',
@@ -170,7 +171,7 @@ class Specification:#(JSONTableEncodableTreeExpression, ProbabilisticBoolean, Co
         self.right_child = right_child
         self.spec_op = op
         #JSONTableEncodableTreeExpression.__init__(self)
-        #ProbabilisticBoolean.__init__(self)
+        ProbabilisticBoolean.__init__(self)
         #ConstrainedValue.__init__(self)
 
     def observe(self, vals: Dict[str, any], call_id=None, observation_key=None, with_bounds=False, delta=0.05):
@@ -215,42 +216,42 @@ class Specification:#(JSONTableEncodableTreeExpression, ProbabilisticBoolean, Co
         return val
 
     # @HistoryLoggingExpression.cached_eval_bounded
-    #def eval_bounded_at_delta(self, delta, call_id=None) -> ProbabilisticBoolean:
-    #    # Return max probability with which eval == self.eval()
-    #    l = self.left_child
-    #    r = self.right_child
-    #    if self.spec_type == SpecificationType.base_spec:
-    #        # if base spec, return the min prob that SpecificationThreshold eval fails
-    #        rec_val = l.eval_bounded_at_delta(delta, call_id)
-    #        self._undetermined = rec_val.undetermined
-    #        self._bool_val = rec_val._bool_val
-    #        self._prob_val = rec_val.bound_val
-    #        self._fail_prob = rec_val.bound_delta
-    #    else:
-    #        l_eb = l.eval_bounded_at_delta(delta, call_id)
-    #        r_eb = r.eval_bounded_at_delta(delta, call_id)
-    #        # f_prob = l_eb.f_prob + r_eb.f_prob
-    #        val = SpecificationOperator.functions()[self.spec_op](
-    #            l_eb._bool_val, r_eb._bool_val)
-    #        self._bool_val = val
-    #        self._fail_prob = min(1.0, r_eb._fail_prob + l_eb._fail_prob)
-    #        # move this to spec op class for cleanup TODO
-    #        if self.spec_op == SpecificationOperator.op_or:
-    #            if l_eb._undetermined and r_eb._undetermined:
-    #                self._fail_prob = 1.0
-    #                self._undetermined = True
-    #            else:
-    #                self._undetermined = False
-    #                self._prob_val = val
-    #        else:
-    #            if l_eb._undetermined or r_eb._undetermined:
-    #                self._fail_prob = 1.0
-    #                self._undetermined = True
-    #            else:
-    #                self._undetermined = False
-    #                self._prob_val = val
-    #    self.record_value(self.row_id)
-    #    return self
+    def eval_bounded_at_delta(self, delta, call_id=None) -> ProbabilisticBoolean:
+        # Return max probability with which eval == self.eval()
+        l = self.left_child
+        r = self.right_child
+        if self.spec_type == SpecificationType.base_spec:
+            # if base spec, return the min prob that SpecificationThreshold eval fails
+            rec_val = l.eval_bounded_at_delta(delta, call_id)
+            self._undetermined = rec_val.undetermined
+            self._bool_val = rec_val._bool_val
+            self._prob_val = rec_val.bound_val
+            self._fail_prob = rec_val.bound_delta
+        else:
+            l_eb = l.eval_bounded_at_delta(delta, call_id)
+            r_eb = r.eval_bounded_at_delta(delta, call_id)
+            # f_prob = l_eb.f_prob + r_eb.f_prob
+            val = SpecificationOperator.functions()[self.spec_op](
+                l_eb._bool_val, r_eb._bool_val)
+            self._bool_val = val
+            self._fail_prob = min(1.0, r_eb._fail_prob + l_eb._fail_prob)
+            # move this to spec op class for cleanup TODO
+            if self.spec_op == SpecificationOperator.op_or:
+                if l_eb._undetermined and r_eb._undetermined:
+                    self._fail_prob = 1.0
+                    self._undetermined = True
+                else:
+                    self._undetermined = False
+                    self._prob_val = val
+            else:
+                if l_eb._undetermined or r_eb._undetermined:
+                    self._fail_prob = 1.0
+                    self._undetermined = True
+                else:
+                    self._undetermined = False
+                    self._prob_val = val
+        self.record_value(call_id)
+        return self
 
     #def ensure_identifiers_created(self, is_top_level=False):
     #    # creates the model and identifiers associated with each term in optimizer

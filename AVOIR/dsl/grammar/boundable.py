@@ -221,12 +221,12 @@ class ProbabilisticBoolean:
 ERROR_MSG = "Child bounds must be computed before bound {} on parent called"
 
 
-class BoundableValue:
+class RangeBoundedValue:
     def __init__(self):
-        self._bound_epsilon = None
-        self._bound_delta = None
-        self._bound_val = None
-        self._bound_n = 0  # num obs
+        self.bound_epsilon = None
+        self.bound_delta = None
+        self.bound_val = None
+        self.bound_n = 0  # num obs
         self.bounded_observations = {} # TODO: Merge with observations, and allow both computations in one pass
 
     def compute_eps_for_known_delta(self, delta: float, n: int) -> float:
@@ -234,24 +234,6 @@ class BoundableValue:
     
     def compute_delta_for_known_eps(self, eps: float, n: int) -> float:
         return generate_delta(eps, n)
-
-    @property
-    def bound_val(self):
-        if self._bound_val is None:
-            raise ValueError(ERROR_MSG.format("val"))
-        return self._bound_val
-
-    @property
-    def bound_epsilon(self):
-        if self._bound_epsilon is None:
-            raise ValueError(ERROR_MSG.format("epsilon"))
-        return self._bound_epsilon
-
-    @property
-    def bound_delta(self):
-        if self._bound_delta is None:
-            return ValueError(ERROR_MSG.format("delta"))
-        return self._bound_delta
 
     def record_value(self, idx):
         self.bounded_observations[idx] = ObservedBoundedValue(self.bound_val, self.bound_epsilon, self.bound_delta)
