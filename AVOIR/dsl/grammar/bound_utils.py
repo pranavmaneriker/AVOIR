@@ -1,6 +1,6 @@
 from __future__ import annotations, division
 
-from typing import List, TYPE_CHECKING
+from typing import TYPE_CHECKING
 import math
 import logging
 
@@ -13,9 +13,11 @@ if TYPE_CHECKING:
     from .specification import SpecificationThreshold
 from .numerical import NumericalOperator
 
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG, format='%(message)s')
 _CONS_EPSILON = 1e-6
+
 
 
 def _generate_eps_bound_adaptive_hoeffding_pyo(delta: float, n: int):

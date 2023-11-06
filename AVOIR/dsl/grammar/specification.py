@@ -9,16 +9,31 @@ from typing import Union, Dict, List, TYPE_CHECKING
 from .representation import JSONTableEncodableTreeExpression, HistoryLoggingExpression, JSONTableRow, TableRowType
 from .numerical import NumericalExpression, NumericalOperator
 from .boundable import ProbabilisticBoolean, ConstrainedValue, OptimizationProblem
-from .bounds_util import or_constraints, and_constraint, equality_constraint, \
+from .bound_utils import or_constraints, and_constraint, equality_constraint, \
     gt_constraint, lt_constraint, implies_constraint
-
-# python circular imports for type check are broken
-# https://stackoverflow.com/questions/39740632/python-type-hinting-without-cyclic-imports
-if TYPE_CHECKING:
-    from .expectation import ExpectationTerm
+from .expectation import ExpectationTerm, Expectation
 
 
-class SpecificationThreshold(JSONTableEncodableTreeExpression, ProbabilisticBoolean, ConstrainedValue):
+# monkey patch the comparison operators to return Specifications
+def _eterm_gt(self, other):
+    other = ExpectationTerm.from_numerical(other)
+    return create_base_spec(self, other, NumericalOperator.greater_than)
+
+def _eterm_lt(self, other):
+    other = ExpectationTerm.from_numerical(other)
+    return create_base_spec(self, other, NumericalOperator.less_than)
+
+def _eterm_eq(self, other):
+    other = ExpectationTerm.from_numerical(other)
+    return create_base_spec(self, other, NumericalOperator.equality)
+
+ExpectationTerm.__gt__ = _eterm_gt
+ExpectationTerm.__lt__ = _eterm_lt
+ExpectationTerm.__eq__ = _eterm_eq
+
+    
+
+class SpecificationThreshold:#(JSONTableEncodableTreeExpression, ProbabilisticBoolean, ConstrainedValue):
     # Implements Eterm > c
     expectation_term: ExpectationTerm
     threshold: NumericalExpression
@@ -41,7 +56,7 @@ class SpecificationThreshold(JSONTableEncodableTreeExpression, ProbabilisticBool
         ProbabilisticBoolean.__init__(self)
         ConstrainedValue.__init__(self)
 
-    @HistoryLoggingExpression.cached_eval
+    #@HistoryLoggingExpression.cached_eval
     def eval(self, call_id=None):
         eval_val = self.expectation_term.eval(call_id)
         threshold = self.threshold.eval(call_id)
@@ -50,37 +65,6 @@ class SpecificationThreshold(JSONTableEncodableTreeExpression, ProbabilisticBool
         # required since comparison for np.array returns bool_ which is not serializable
         val = bool(val)
         return val
-
-    def eval_bounded_at_delta(self, delta, call_id=None):
-        eval_obs = self.expectation_term.eval_bounded_at_delta(delta, call_id)
-        threshold = self.threshold.eval(call_id)
-        eval_obs_upper = eval_obs.bound_val + eval_obs.bound_epsilon
-        eval_obs_lower = eval_obs.bound_val - eval_obs.bound_epsilon
-        comp_op_func = NumericalOperator.functions()[self.operator]
-        opposite_op_func = NumericalOperator.opposite_function()[self.operator]
-        perp = True
-        if comp_op_func(eval_obs.bound_val, threshold):
-            self._bool_val = True
-            if comp_op_func(eval_obs_upper, threshold) and comp_op_func(eval_obs_lower, threshold):
-                self._prob_val = True
-                self._fail_prob = eval_obs.bound_delta
-                perp = False
-                # the mean value satisfied the inequality
-        else:
-            self._bool_val = False
-            if opposite_op_func(eval_obs_upper, threshold) and opposite_op_func(eval_obs_lower, threshold):
-                self._prob_val = False
-                self._fail_prob = eval_obs.bound_delta
-                perp = False
-
-        if perp:
-            self._undetermined = True
-            self._fail_prob = 1.0
-        else:
-            self._undetermined = False
-
-        self.record_value(self.row_id)  # NOTE: Move to observe, fix with uuid from JSONTable
-        return self
 
     def observe(self, vals: Dict[str, any], call_id=None, observation_key=None, with_bounds=False, delta=0.05):
         self.undo_previous_observations(with_key=observation_key)
@@ -93,61 +77,83 @@ class SpecificationThreshold(JSONTableEncodableTreeExpression, ProbabilisticBool
         self.threshold.bind_variables(vals, call_id=call_id)
         observation_key = self.update_values(call_id, value_key=observation_key)
         return observation_key
+    #def eval_bounded_at_delta(self, delta, call_id=None):
+    #    eval_obs = self.expectation_term.eval_bounded_at_delta(delta, call_id)
+    #    threshold = self.threshold.eval(call_id)
+    #    eval_obs_upper = eval_obs.bound_val + eval_obs.bound_epsilon
+    #    eval_obs_lower = eval_obs.bound_val - eval_obs.bound_epsilon
+    #    comp_op_func = NumericalOperator.functions()[self.operator]
+    #    opposite_op_func = NumericalOperator.opposite_function()[self.operator]
+    #    perp = True
+    #    if comp_op_func(eval_obs.bound_val, threshold):
+    #        self._bool_val = True
+    #        if comp_op_func(eval_obs_upper, threshold) and comp_op_func(eval_obs_lower, threshold):
+    #            self._prob_val = True
+    #            self._fail_prob = eval_obs.bound_delta
+    #            perp = False
+    #            # the mean value satisfied the inequality
+    #    else:
+    #        self._bool_val = False
+    #        if opposite_op_func(eval_obs_upper, threshold) and opposite_op_func(eval_obs_lower, threshold):
+    #            self._prob_val = False
+    #            self._fail_prob = eval_obs.bound_delta
+    #            perp = False
 
-    def unobserve(self, call_id=None, observation_key=None):
-        self.undo_previous_observations(with_key=observation_key)
-        self.expectation_term.unobserve(call_id, observation_key)
-        self.threshold.unobserve(call_id, observation_key)
-        self.update_values(call_id, value_key=observation_key)
+    #    if perp:
+    #        self._undetermined = True
+    #        self._fail_prob = 1.0
+    #    else:
+    #        self._undetermined = False
 
-    def undo_previous_observations(self, with_key):
-        self.retire_values(with_key)
+    #    self.record_value(self.row_id)  # NOTE: Move to observe, fix with uuid from JSONTable
+    #    return self
+
 
     def __repr__(self):
         return f"({str(self.expectation_term)} {NumericalOperator.symbols()[self.operator]} {self.threshold})"
 
     # overrides(JSONTableEncodableTreeExpression)
-    @property
-    def children(self) -> List[JSONTableEncodableTreeExpression]:
-        return [self.expectation_term, self.threshold]
+    #@property
+    #def children(self) -> List[JSONTableEncodableTreeExpression]:
+    #    return [self.expectation_term, self.threshold]
 
-    # overrides(JSONTableEncodableTreeExpression)
-    @property
-    def row_representation(self) -> JSONTableRow:
-        return JSONTableRow(
-            row_type=TableRowType.specification_threshold
-        )
+    ## overrides(JSONTableEncodableTreeExpression)
+    #@property
+    #def row_representation(self) -> JSONTableRow:
+    #    return JSONTableRow(
+    #        row_type=TableRowType.specification_threshold
+    #    )
 
-    def ensure_identifiers_created(self, is_top_level=False):
-        self.expectation_term.assign_identifier("E_{}".format(self._id_suffix),
-                                                self._id_suffix)
+    #def ensure_identifiers_created(self, is_top_level=False):
+    #    self.expectation_term.assign_identifier("E_{}".format(self._id_suffix),
+    #                                            self._id_suffix)
 
-        self.expectation_term.ensure_identifier_created()
-        self._is_identifier_created = True
+    #    self.expectation_term.ensure_identifier_created()
+    #    self._is_identifier_created = True
 
-    def ensure_base_model_created(self):
-        self.expectation_term.set_problem(self._opt_prob)
-        self.expectation_term.ensure_base_model_created()
+    #def ensure_base_model_created(self):
+    #    self.expectation_term.set_problem(self._opt_prob)
+    #    self.expectation_term.ensure_base_model_created()
 
-    def construct_opt_problem(self, parent=None):
-        self.expectation_term.construct_opt_problem(parent=self)
-        self.opt_delta = self.expectation_term.opt_delta
-        self.opt_epsilon = self.expectation_term.opt_epsilon
-        self.opt_constraints = list(self.expectation_term.opt_constraints)
-        if self.operator == NumericalOperator.equality:
-            self.opt_constraints.append(equality_constraint(self.opt_epsilon))
-        else:
-            eterm = self.expectation_term.opt_E
-            thresh_val = self.threshold.eval()
-            # E > c => E - \eps > c
-            if eterm > thresh_val:
-                self.opt_constraints.append(gt_constraint(eterm - self.opt_epsilon, thresh_val))
-            elif eterm < thresh_val:
-                self.opt_constraints.append(lt_constraint(eterm + self.opt_epsilon, thresh_val))
+    #def construct_opt_problem(self, parent=None):
+    #    self.expectation_term.construct_opt_problem(parent=self)
+    #    self.opt_delta = self.expectation_term.opt_delta
+    #    self.opt_epsilon = self.expectation_term.opt_epsilon
+    #    self.opt_constraints = list(self.expectation_term.opt_constraints)
+    #    if self.operator == NumericalOperator.equality:
+    #        self.opt_constraints.append(equality_constraint(self.opt_epsilon))
+    #    else:
+    #        eterm = self.expectation_term.opt_E
+    #        thresh_val = self.threshold.eval()
+    #        # E > c => E - \eps > c
+    #        if eterm > thresh_val:
+    #            self.opt_constraints.append(gt_constraint(eterm - self.opt_epsilon, thresh_val))
+    #        elif eterm < thresh_val:
+    #            self.opt_constraints.append(lt_constraint(eterm + self.opt_epsilon, thresh_val))
 
-    def record_value(self, str_id):
-        super().record_value(str_id)
-        self.bounded_observations.update(self.expectation_term.bounded_observations)
+    #def record_value(self, str_id):
+    #    super().record_value(str_id)
+    #    self.bounded_observations.update(self.expectation_term.bounded_observations)
 
 
 class SpecificationOperator(Enum):

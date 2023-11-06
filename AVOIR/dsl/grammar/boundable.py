@@ -4,7 +4,7 @@ import logging
 import pyomo.environ as pyo
 
 
-from .bounds_util import generate_eps
+from .bound_utils import generate_eps
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG, format='%(message)s')

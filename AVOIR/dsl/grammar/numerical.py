@@ -4,6 +4,7 @@ import operator
 import math
 
 from .representation import JSONTableEncodableTreeExpression, JSONTableRow, TableRowType
+from .type_utils import ObservationType
 
 
 class NumericalExpressionType(Enum):
@@ -93,6 +94,7 @@ class NumericalExpression:#(JSONTableEncodableTreeExpression):
         The assumption is that the underlying variable value type must support binary operations
         Note: Eval does NOT currently support hyperexpressions (binding must be to formal param, not func)
         :param symbolic_rep: string representation for expression
+        from .utils import ObservationType
         :param expression_type: variable (binding), constant, or expr
         :param left_child: the value, or the left child if binary op
         :param right_child:
@@ -127,7 +129,7 @@ class NumericalExpression:#(JSONTableEncodableTreeExpression):
         self.val = None
         self.is_bound = False
 
-    def bind_variables(self, vals: Dict[str, Union[int, bool, float]]): #, call_id=0):
+    def bind_variables(self, vals: ObservationType): #, call_id=0):
         """
         Given a mapping from variable names to values, bind_variables recursively
         binds values in the mapping to variables contained within its expression

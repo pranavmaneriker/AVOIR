@@ -25,7 +25,7 @@ class TestNumericalExpression(unittest.TestCase):
         c1 = nu.create_constant(10)
         e = c1 * v1
         self.assertRaises(UnboundLocalError, e.eval)
-        v1.bind(10)
+        v1.bind_variables({"x": 10})
         self.assertEqual(e.eval(), 100, "10 * 10 should be 100")
 
     def test_expression_equality(self):
@@ -44,18 +44,18 @@ class TestNumericalExpression(unittest.TestCase):
     def test_auto_overloading(self):
         v1 = nu.create_variable("x")
         e = 2/v1
-        v1.bind(5)
+        v1.bind_variables({"x": 5})
         self.assertEqual(e.eval(), 0.4, "2/x = 0.4 for x = 5")
     
     def test_recursive_binding(self):
         v1 = nu.create_variable("x")
         v2 = nu.create_variable("y")
         e = v1 + v2
-        e.bind({"x": 1, "y": 2})
+        e.bind_variables({"x": 1, "y": 2})
         self.assertEqual(e.eval(), 3, "1 + 2 = 3")
         
         e.unbind_variables()
-        e.bind({"x": 3, "y": 4})
+        e.bind_variables({"x": 3, "y": 4})
         self.assertEqual(e.eval(), 7, "3 + 4 = 7 after unbinding")
 
 
