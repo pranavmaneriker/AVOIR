@@ -72,11 +72,6 @@ class NumericalOperator(Enum):
             cls.op_or: "|"
         }
 
-    def is_arithmetic(self):
-        if self.name in ["add", "subtract", "multiply", "divide"]:
-            return True
-        return False
-
 
 class NumericalExpression:#(JSONTableEncodableTreeExpression):
     RESERVE_WORD_RETVAL = "NumericalExpression.RESERVE_WORD_RETVAL"

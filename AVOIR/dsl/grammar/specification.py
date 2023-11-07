@@ -17,11 +17,10 @@ if TYPE_CHECKING:
 
     
 
-class SpecificationThreshold(ProbabilisticBoolean):#(JSONTableEncodableTreeExpression, ConstrainedValue):
+class SpecificationThreshold(ProbabilisticBoolean, ConstrainedValue):#(JSONTableEncodableTreeExpression):
     # Implements Eterm > c
 
-    def __init__(self, expectation_term, threshold, op,
-                 threshold_prob: float = 0.9):
+    def __init__(self, expectation_term: ExpectationTerm, threshold: NumericalExpression, op: NumericalOperator):
         """
         Base term that results from promoting
         :param expectation_term:
@@ -30,12 +29,11 @@ class SpecificationThreshold(ProbabilisticBoolean):#(JSONTableEncodableTreeExpre
         self.threshold: NumericalExpression = threshold
         self.expectation_term: ExpectationTerm = expectation_term
         self.operator: NumericalOperator = op
-        self.threshold_prob: float = threshold_prob
         assert self.threshold.expression_type == NumericalExpressionType.constant, "Threshold must be constant"
 
         #JSONTableEncodableTreeExpression.__init__(self)
         ProbabilisticBoolean.__init__(self)
-        #ConstrainedValue.__init__(self)
+        ConstrainedValue.__init__(self)
 
     #@HistoryLoggingExpression.cached_eval
     def eval(self, call_id=None):
@@ -90,6 +88,18 @@ class SpecificationThreshold(ProbabilisticBoolean):#(JSONTableEncodableTreeExpre
     def __repr__(self):
         return f"({str(self.expectation_term)} {NumericalOperator.symbols()[self.operator]} {self.threshold})"
 
+    def ensure_identifiers_created(self, is_top_level=False):
+        assert self._id_suffix is not None, "Identifier suffix must be set before creating child identifiers"
+        self.expectation_term.assign_identifier("E_{}".format(self._id_suffix),
+                                                self._id_suffix)
+
+        self.expectation_term.ensure_identifier_created()
+        self._is_identifier_created = True
+
+    def ensure_base_model_created(self):
+        self.expectation_term.set_problem(self._opt_prob)
+        self.expectation_term.ensure_base_model_created()
+
     # overrides(JSONTableEncodableTreeExpression)
     #@property
     #def children(self) -> List[JSONTableEncodableTreeExpression]:
@@ -102,16 +112,7 @@ class SpecificationThreshold(ProbabilisticBoolean):#(JSONTableEncodableTreeExpre
     #        row_type=TableRowType.specification_threshold
     #    )
 
-    #def ensure_identifiers_created(self, is_top_level=False):
-    #    self.expectation_term.assign_identifier("E_{}".format(self._id_suffix),
-    #                                            self._id_suffix)
 
-    #    self.expectation_term.ensure_identifier_created()
-    #    self._is_identifier_created = True
-
-    #def ensure_base_model_created(self):
-    #    self.expectation_term.set_problem(self._opt_prob)
-    #    self.expectation_term.ensure_base_model_created()
 
     #def construct_opt_problem(self, parent=None):
     #    self.expectation_term.construct_opt_problem(parent=self)
@@ -151,7 +152,7 @@ class SpecificationType(Enum):
     binary_spec = 2  # Spec &/| Spec
 
 
-class Specification(ProbabilisticBoolean):#(JSONTableEncodableTreeExpression, ConstrainedValue):
+class Specification(ProbabilisticBoolean, ConstrainedValue):#(JSONTableEncodableTreeExpression, ConstrainedValue):
 
     def __init__(self, spec_type: SpecificationType = None,
                  left_child: Union['Specification',
@@ -172,7 +173,7 @@ class Specification(ProbabilisticBoolean):#(JSONTableEncodableTreeExpression, Co
         self.spec_op = op
         #JSONTableEncodableTreeExpression.__init__(self)
         ProbabilisticBoolean.__init__(self)
-        #ConstrainedValue.__init__(self)
+        ConstrainedValue.__init__(self)
 
     def observe(self, vals: Dict[str, any], call_id=None, observation_key=None, with_bounds=False, delta=0.05):
         # TODO possibly observe, and then observe bounds?
@@ -183,16 +184,6 @@ class Specification(ProbabilisticBoolean):#(JSONTableEncodableTreeExpression, Co
             self.right_child.observe(vals, call_id, observation_key, with_bounds, delta)
         #observation_key = self.update_values(call_id, value_key=observation_key)
         #return observation_key
-
-    #def unobserve(self, call_id=None, observation_key=None):
-    #    self.undo_previous_observations(with_key=observation_key)
-    #    if self.spec_type == SpecificationType.binary_spec:
-    #        self.left_child.unobserve(call_id, observation_key)
-    #        self.right_child.unobserve(call_id, observation_key)
-    #    self.update_values(call_id, value_key=observation_key)
-
-    #def undo_previous_observations(self, with_key):
-    #    self.retire_values(with_key)
 
     def __and__(self, other: "Specification") -> "Specification":
         # operator: &
@@ -217,6 +208,7 @@ class Specification(ProbabilisticBoolean):#(JSONTableEncodableTreeExpression, Co
 
     # @HistoryLoggingExpression.cached_eval_bounded
     def eval_bounded_at_delta(self, delta, call_id=None) -> ProbabilisticBoolean:
+        """Both children evaluated at \delta and then the combined delta is computed"""
         # Return max probability with which eval == self.eval()
         l = self.left_child
         r = self.right_child
@@ -253,50 +245,56 @@ class Specification(ProbabilisticBoolean):#(JSONTableEncodableTreeExpression, Co
         self.record_value(call_id)
         return self
 
-    #def ensure_identifiers_created(self, is_top_level=False):
-    #    # creates the model and identifiers associated with each term in optimizer
-    #    if not self._is_identifier_created:  # only called once
-    #        l = self.left_child
-    #        r = self.right_child
-    #        # identifiers are generated with the model, so this can only happen if
-    #        # model has not been created
-    #        # top level identifier is psi
-    #        # each child identifier is {parent}_1 or {parent}_2
-    #        # specification threshold identifier is {parent}_T
-    #        if is_top_level:
-    #            self.assign_identifier("psi_1", "1")
-    #            self._is_top_level = True
+    def prepare_for_opt(self, is_top_level=False):
+        self.ensure_identifiers_created(is_top_level)
+        self.ensure_base_model_created(is_top_level)
 
-    #        if self.spec_type == SpecificationType.base_spec:
-    #            l.assign_identifier("{}_T".format(self._identifier), self._id_suffix)
-    #            l.ensure_identifiers_created()
-    #        else:
-    #            l.assign_identifier("{}_{}".format(self._identifier, "1"),
-    #                                "{}_1".format(self._id_suffix))
-    #            l.ensure_identifiers_created()
+    def ensure_identifiers_created(self, is_top_level=False):
+        # creates the model and identifiers associated with each term in optimizer
+        if not self._is_identifier_created:  # only called once
+            l = self.left_child
+            r = self.right_child
+            # identifiers are generated with the model, so this can only happen if
+            # model has not been created
+            # top level identifier is psi
+            # each child identifier is {parent}_1 or {parent}_2
+            # specification threshold identifier is {parent}_T
+            if is_top_level:
+                self.assign_identifier("psi_1", "1")
+                self._is_top_level = True
 
-    #            r.assign_identifier("{}_{}".format(self._identifier, "2"),
-    #                                "{}_2".format(self._id_suffix))
-    #            r.ensure_identifiers_created()
-    #        self._is_identifier_created = True
+            if self.spec_type == SpecificationType.base_spec:
+                # left is a SpecificationThreshold
+                l.assign_identifier("{}_T".format(self._identifier), self._id_suffix + "_T")
+                l.ensure_identifiers_created()
+            else:
+                l.assign_identifier("{}_{}".format(self._identifier, "1"),
+                                    "{}_1".format(self._id_suffix))
+                l.ensure_identifiers_created()
 
-    #def ensure_base_model_created(self, is_top_level=False):
-    #    opt_prob = self._opt_prob
-    #    if opt_prob is None:
-    #        opt_prob = OptimizationProblem()
-    #        self.set_problem(opt_prob)
+                r.assign_identifier("{}_{}".format(self._identifier, "2"),
+                                    "{}_2".format(self._id_suffix))
+                r.ensure_identifiers_created()
+            self._is_identifier_created = True
 
-    #    l = self.left_child
-    #    r = self.right_child
-    #    l.set_problem(opt_prob)
-    #    l.ensure_base_model_created()
+    def ensure_base_model_created(self, is_top_level=False):
+        opt_prob = self._opt_prob
+        if opt_prob is None:
+            if is_top_level:
+                opt_prob = OptimizationProblem()
+                self.set_problem(opt_prob)
 
-    #    if self.spec_type != SpecificationType.base_spec:
-    #        r.set_problem(opt_prob)
-    #        r.ensure_base_model_created()
+        l = self.left_child
+        r = self.right_child
+        l.set_problem(opt_prob)
+        l.ensure_base_model_created()
 
-    #    if is_top_level:
-    #        self._opt_prob.create_base_opt_model()
+        if self.spec_type != SpecificationType.base_spec:
+            r.set_problem(opt_prob)
+            r.ensure_base_model_created()
+
+        if is_top_level:
+            self._opt_prob.create_base_opt_model()
 
     #def construct_opt_problem(self, parent=None):
     #    l = self.left_child
@@ -320,9 +318,6 @@ class Specification(ProbabilisticBoolean):#(JSONTableEncodableTreeExpression, Co
 
     #    self._opt_prob._is_problem_ready = True
 
-    #def prepare_for_opt(self, is_top_level=False):
-    #    self.ensure_identifiers_created(is_top_level)
-    #    self.ensure_base_model_created(is_top_level)
 
     #def eval_bounded_with_constraints_at_delta(self, delta, call_id=None):
     #    self.eval(call_id)  # TODO call_id support

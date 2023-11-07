@@ -11,19 +11,35 @@ logging.basicConfig(level=logging.DEBUG, format='%(message)s')
 
 
 class OptimizationProblem:
+    """This class is used to track and solve the optimization problem corresponding to a specification
+        The optimization problem is initialized at a global level and then the instance is passed down to each 
+        Expectattion, ExpectationTerm, Specification, and SpecificationThreshold object
+    """
+
     def __init__(self):
-        self._m = None
-        self._solver = pyo.SolverFactory("mindtpy")
+        self._m = None # pyomo mode
+        self._solver = pyo.SolverFactory("mindtpy") # mixed-integer nonlinear programming solver
+
+        # List of suffixes for Expectations and maps from suffix to index
         self._var_suffixes_E: List[str] = []
         self._suffix_index_map_E = {}
-        self._var_suffixes_ET: List[str] = []
+
+        # List of suffixes for ExpectationTerms and maps from suffix to index
+        self._var_suffixes_ET: List[str] = [] 
         self._suffix_index_map_ET = {}
+
+        # E and ET mappings generated
+        self._e_mappings_generated = False
+        # Need to initialize the mappings and corresponding model instance
         self._is_problem_ready = False
         self._instance = None
+        # bindings used to supply the variables computed from values 
         self._bindings_E = {}
         self._bindings_n = {}
         self._bindings_ET = {}
+        # track the num of constraints
         self.prev_constraints_len = 0
+        # track whether to run the optimer at a particular time step
         self._can_optimize_at_step = True
 
     def get_num_E(self):
@@ -33,34 +49,45 @@ class OptimizationProblem:
         return self._suffix_index_map_E.get(suffix)
 
     def create_base_opt_model(self):
-        self._m = pyo.AbstractModel()
-        m = self._m
+        assert self._e_mappings_generated
 
+        self._m = pyo.AbstractModel()
+        m = self._m # abstract symbolic model
+        # variables and indices for E and ETerms
         m.I = pyo.RangeSet(len(self._var_suffixes_E))
         m.J = pyo.RangeSet(len(self._var_suffixes_ET))
-        m.delta = pyo.Var(m.I , within=pyo.NonNegativeReals, bounds=(0.0, 1.0))
-        m.epsilon = pyo.Var(m.I, within=pyo.NonNegativeReals)
         m.n = pyo.Param(m.I)
         m.E = pyo.Param(m.I)
         m.ET = pyo.Param(m.J)
-        self.add_opt_objective()
+        # delta, epsilon for each E
+        m.delta = pyo.Var(m.I , within=pyo.NonNegativeReals, bounds=(0.0, 1.0))
+        m.epsilon = pyo.Var(m.I, within=pyo.NonNegativeReals)
+        self.add_opt_objective() # minimize sum(delta)
 
-    def add_var(self, var_suffix: str):
-        self._var_suffixes_E.append(var_suffix)
-        self._suffix_index_map_E[var_suffix] = len(self._var_suffixes_E)
 
     def add_opt_objective(self):
+        # optimization objective: minimize \sum delta
         def obj_expression(m):
             return pyo.summation(m.delta)
         model = self._m
         model.OBJ = pyo.Objective(rule=obj_expression, sense=pyo.minimize)
 
     def add_constraints(self, constraints):
+        """Constraints generated from each ETerm or SpecificationThreshold are added to the optimization problem"""
         m = self._instance
         for ind, c in enumerate(constraints):
-            c_name = "c_{}".format(ind)
+            c_name = "c_{}".format(ind + self.prev_constraints_len)
+            # These need to be set explicitly on the instance for pyomo to handle it correctly
             setattr(m, c_name, c)
         self.prev_constraints_len = len(constraints)
+
+    def add_E(self, var_suffix: str):
+        # create a variable in the optmiization problem corresponding to E
+        # assumes that var_suffix is unique for each E
+        # TODO: note that if the tracked expression and condition is shared, then we could share eps, delta
+        # and optimize better but this is not implemented.
+        self._var_suffixes_E.append(var_suffix)
+        self._suffix_index_map_E[var_suffix] = len(self._var_suffixes_E)
 
     def add_eterm_param(self, var_suffix: str):
         self._var_suffixes_ET.append(var_suffix)
@@ -115,7 +142,7 @@ class OptimizationProblem:
                              "E": b_E,
                              "ET": b_ET,
                              "n": b_n
-                         }
+        }
         return {None: bindings_dict}
 
     @property
@@ -178,6 +205,7 @@ class ConstrainedValue:
     def num_E(self):
         return self._opt_prob.get_num_E()
 
+## non-constrained eval helpers
 class ObservedProbabilisticBoolean:
     def __init__(self, val, undetermined, delta):
         self.val = val

@@ -239,7 +239,7 @@ class ExpectationTermType(Enum):
     expectation = 2
     constant = 3
 
-class ExpectationTerm(ExpectationTermOps, RangeBoundedValue):#(JSONTableEncodableTreeExpression, , ConstrainedValue):
+class ExpectationTerm(ExpectationTermOps, RangeBoundedValue, ConstrainedValue):#(JSONTableEncodableTreeExpression):
     """
     An ExpectationTerm is a binary expression that captures binary operations of 
     probabilistic expressions. A base expectation term is either an Expectation or 
@@ -260,8 +260,7 @@ class ExpectationTerm(ExpectationTermOps, RangeBoundedValue):#(JSONTableEncodabl
         self.op = op
         RangeBoundedValue.__init__(self)
         #JSONTableEncodableTreeExpression.__init__(self)
-        #BoundableValue.__init__(self)
-        #ConstrainedValue.__init__(self)
+        ConstrainedValue.__init__(self)
 
     def observe(self, observations: ObservationType, call_id=None): #, call_id=None, observation_key=None, with_bounds=False, delta=0.05):
         if self.term_type in [ExpectationTermType.expectation, ExpectationTermType.binary]:
@@ -284,6 +283,9 @@ class ExpectationTerm(ExpectationTermOps, RangeBoundedValue):#(JSONTableEncodabl
         return self.symbolic_rep
 
     def eval_bounded_at_delta(self, delta, call_id=None):
+        """Evaluate the bounds for the ETErm where the \delta for both children is set to :delta:
+            Note that this would imply that the bound_delta for this term would be `2*:delta:` if it is binary
+        """
         # assume equal splits
         self.bound_val = self.eval(call_id)
         if self.term_type == ExpectationTermType.binary:
@@ -306,7 +308,32 @@ class ExpectationTerm(ExpectationTermOps, RangeBoundedValue):#(JSONTableEncodabl
     def from_numerical(cls, term: Union[NumericalExpression, float, int]) -> NumericalExpression:
         term2 = create_numexpr_from_constant(term)
         return cls(repr(term2), ExpectationTermType.constant, term2, None, None)
+
+    def ensure_identifier_created(self):
+        l = self.left_child
+        r = self.right_child
+        if self.term_type != ExpectationTermType.constant:
+            self._identifier = self._id_suffix
+            l.assign_identifier("{}_{}".format(self._identifier, "1"),
+                                "{}_{}".format(self._id_suffix, "1"))
+            l.ensure_identifier_created()
+            if self.term_type == ExpectationTermType.binary:
+                r.assign_identifier("{}_{}".format(self._identifier, "2"),
+                                    "{}_{}".format(self._id_suffix, "2"))
+                r.ensure_identifier_created()
+        self._is_identifier_created = True
     
+    def ensure_base_model_created(self):
+        opt_prob = self._opt_prob
+        if opt_prob is None:
+            raise ValueError("Base Expecatation did not have opt prob set when model has to be created")
+        self._opt_prob.add_eterm_param(self._id_suffix)
+        l = self.left_child
+        r = self.right_child
+        l.set_problem(self._opt_prob)
+        r.set_problem(self._opt_prob)
+        l.ensure_base_model_created()
+        r.ensure_base_model_created()
 
 
 
@@ -351,29 +378,7 @@ def create_binary_expectation_term(left: ExpectationTerm, right: ExpectationTerm
     #        row_type=TableRowType.expectation_term
     #    )
 
-    #def ensure_identifier_created(self):
-    #    l = self.left_child
-    #    r = self.right_child
-    #    l.assign_identifier("{}_{}".format(self._identifier, "1"),
-    #                        "{}_{}".format(self._id_suffix, "1"))
-    #    l.ensure_identifier_created()
 
-    #    r.assign_identifier("{}_{}".format(self._identifier, "2"),
-    #                        "{}_{}".format(self._id_suffix, "2"))
-    #    r.ensure_identifier_created()
-    #    self._is_identifier_created = True
-
-    #def ensure_base_model_created(self):
-    #    opt_prob = self._opt_prob
-    #    if opt_prob is None:
-    #        raise ValueError("Base Expecatation did not have opt prob set when model has to be created")
-    #    self._opt_prob.add_eterm_param(self._id_suffix)
-    #    l = self.left_child
-    #    r = self.right_child
-    #    l.set_problem(self._opt_prob)
-    #    r.set_problem(self._opt_prob)
-    #    l.ensure_base_model_created()
-    #    r.ensure_base_model_created()
 
     #def construct_opt_problem(self, parent=None):
     #    l = self.left_child

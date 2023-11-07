@@ -41,6 +41,9 @@ class SpecTracker:
 
 
 class ObservedFunction:
+    """Wrapper around a function over which a spcification is defined and tracked.
+        Augments the __call__ on the function to update optimization and bounding information at each invocation.
+    """
     def __init__(self, func, spec: Specification, observation_key: Optional[str] = None, with_bounds=False, delta=0.05,
                  optimization_frequency=10, our_approach=True):
         self.func = func
