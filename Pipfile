@@ -1,0 +1,28 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+scikit-learn = "*"
+streamlit = "*"
+pytest = "*"
+pytest-cov = "*"
+altair = "*"
+vega-datasets = "*"
+vega = "*"
+stqdm = "*"
+scipy = "*"
+numpy = "*"
+nltk = "*"
+torch = "*"
+torchvision = "*"
+simpletransformers = "*"
+pyomo = "*"
+jupyter = "*"
+matplotlib = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.8"
